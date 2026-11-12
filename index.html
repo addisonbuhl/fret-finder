@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fret Finder">
+<meta name="theme-color" content="#17120f">
+<title>Fret Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column, practice card on top, live tuner + fretboard below. Rosewood dark, brass fret-wire accent. */
+:root{
+  --bg:#17120f; --panel:#211915; --raise:#2c221d; --line:#3d3029;
+  --ink:#f2ebe1; --muted:#a8998b; --brass:#dba84a; --brass-ink:#1d150f;
+  --ok:#86cfa4; --bad:#ee8062; --string:#cfc8bf;
+  --display:"Space Grotesk",system-ui,-apple-system,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{
+  font:15px/1.45 var(--body);-webkit-text-size-adjust:100%;
+  min-height:100dvh;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.app{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-block:14px 28px}
+
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 22px/1.1 var(--display);letter-spacing:-.01em;margin:0}
+h1 span{color:var(--brass)}
+.stats{display:flex;gap:14px;align-items:baseline;color:var(--muted);font-size:13px;background:none;border:0;padding:4px 0}
+.stats .more{color:var(--brass);font-weight:600}
+.stats b{font:700 14px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{background:transparent;border:0;border-radius:9px;min-height:40px;color:var(--muted);font-weight:500;font-size:14px}
+.seg.two{grid-template-columns:repeat(2,1fr)}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--ink);box-shadow:inset 0 0 0 1px var(--brass)}
+.chips{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.chips button{height:42px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font:700 16px var(--mono);color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.row label,.rangeCtl{display:flex;align-items:center;gap:8px}
+select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink)}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
+
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ask{color:var(--muted);text-align:center;text-wrap:balance}
+.ask strong{color:var(--ink);font-weight:600}
+.target{font:700 64px/1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:flex;justify-content:center;align-items:baseline;flex-wrap:wrap;gap:6px 18px;min-height:64px}
+.target.run{font-size:40px;min-height:48px}
+.target.run.long{font-size:30px}
+.target .tn{position:relative;padding-bottom:8px}
+.target .tn.hid{color:var(--line)}
+.target .tn.done{color:var(--ok)}
+.target .tn.cur::after{content:"";position:absolute;left:10%;right:10%;bottom:0;height:3px;border-radius:2px;background:var(--brass)}
+.target small{font-size:.45em;color:var(--muted);margin-left:2px}
+.target .tn.done small{color:inherit;opacity:.7}
+.target .tn.ref{color:var(--brass)}
+.target .arrow{color:var(--muted);font-size:.6em;align-self:center;padding-bottom:8px}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;font-size:14px;color:var(--muted)}
+.opts label{display:flex;align-items:center;gap:8px;min-height:32px}
+.mk-ref{fill:var(--brass)}
+.lg-r{background:var(--brass)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tile b{display:block;font:700 22px/1.2 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--muted)}
+.sheet h3{font:600 15px var(--body);margin:6px 0 0}
+#histChart{display:block;width:100%;height:auto}
+.hc-all{fill:var(--line)} .hc-ok{fill:var(--ok)} .hc-lbl{fill:var(--muted);font:500 10px var(--mono)}
+.weak{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.weak li{display:grid;grid-template-columns:3.5em 1fr auto;gap:10px;align-items:center;font-size:14px;color:var(--muted)}
+.weak li b{font:700 15px var(--mono);color:var(--ink)}
+.weak .wbar{height:6px;border-radius:3px;background:var(--panel);overflow:hidden}
+.weak .wbar i{display:block;height:100%;background:var(--bad)}
+.mk-num{fill:var(--brass);font:700 9px var(--mono)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1 1 0;min-width:0;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--raise);font-weight:600;font-size:15px;padding:0 10px}
+.btn.primary{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
+.btn:active{transform:translateY(1px)}
+.feedback{min-height:1.5em;text-align:center;font-weight:500;text-wrap:balance}
+.feedback.ok{color:var(--ok)}
+.feedback.bad{color:var(--bad)}
+.linkbtn{background:none;border:0;color:var(--brass);text-decoration:underline;text-underline-offset:3px;font-size:14px;padding:4px;align-self:center}
+
+.live{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:center;padding:0 2px}
+.liveNote{font:700 40px/1 var(--display);min-width:3.4ch;font-variant-numeric:tabular-nums;transition:opacity .2s}
+.liveNote.dim{opacity:.35}
+.meter{position:relative;height:30px;border-radius:8px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.meter::before{content:"";position:absolute;inset:0 calc(50% - 10%) ;background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.meter::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--muted)}
+.needle{position:absolute;top:4px;bottom:4px;width:4px;margin-left:-2px;border-radius:2px;background:var(--muted);left:50%;transition:left .08s linear,background .15s}
+.needle.in{background:var(--ok)}
+.liveMeta{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.liveMeta b{color:var(--ink);font-weight:500}
+.micRow{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted)}
+.lvl{position:relative;height:8px;border-radius:4px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.lvl i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--muted)}
+.lvl i.on{background:var(--ok)}
+.lvl b{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--brass);left:50%}
+.micRow input[type=range]{width:100%;accent-color:var(--brass)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.board{display:flex;flex-direction:column;gap:6px}
+.boardScroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+#fb{display:block;width:100%;min-width:340px;height:auto}
+.fb-wood{fill:var(--panel)}
+.fb-fret{stroke:var(--line);stroke-width:2}
+.fb-nut{stroke:var(--string);stroke-width:4}
+.fb-string{stroke:var(--string)}
+.fb-inlay{fill:var(--line)}
+.fb-label{fill:var(--muted);font:600 11px var(--mono)}
+.fb-num{fill:var(--muted);font:500 9px var(--mono)}
+.fb-dim{fill:var(--bg);opacity:.6}
+.mk-target{fill:none;stroke:var(--brass);stroke-width:2.5}
+.mk-hit{fill:var(--ok)}
+.mk-miss{fill:var(--bad)}
+.mk-heard{fill:var(--string)}
+.mk-maybe{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:2 2}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.lg-t{border:2px solid var(--brass)} .lg-h{background:var(--ok)} .lg-m{background:var(--bad)} .lg-q{border:1.5px dashed var(--muted)}
+
+.calbar{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:14px;flex-wrap:wrap}
+.calbar p{margin:0;font-size:13px;color:var(--muted);flex:1 1 200px}
+.calbar p b{color:var(--ink);font-weight:600}
+.calbar .btn{flex:0 0 auto;min-height:42px;padding:0 16px}
+
+.sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:20;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheetIn{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-block:18px 28px}
+.sheet h2{font:700 22px/1.1 var(--display);margin:0}
+.sheet p{margin:0;color:var(--muted);max-width:62ch}
+.calPrompt{background:var(--panel);border:1px solid var(--brass);border-radius:14px;padding:16px;text-align:center}
+.calPrompt .what{font:700 26px/1.15 var(--display);text-wrap:balance}
+.calPrompt .note{font:700 16px var(--mono);color:var(--brass);margin-top:6px}
+.calHeard{min-height:1.4em;text-align:center;font-size:14px;color:var(--muted)}
+.calHeard.ok{color:var(--ok)} .calHeard.bad{color:var(--bad)}
+.calGrid{width:100%;border-collapse:separate;border-spacing:5px}
+.calGrid th{font:600 12px var(--mono);color:var(--muted);text-align:center;padding:2px}
+.calGrid th.s{text-align:left;width:4.5em}
+.calGrid td button{width:100%;min-height:42px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font:500 13px var(--mono);color:var(--muted)}
+.calGrid td button.done{background:color-mix(in srgb,var(--ok) 18%,var(--panel));border-color:color-mix(in srgb,var(--ok) 50%,var(--line));color:var(--ink)}
+.calGrid td button.cur{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(--brass);color:var(--ink)}
+.calMic{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.calMic .bar{flex:1;height:6px;border-radius:3px;background:var(--panel);overflow:hidden}
+.calMic .bar i{display:block;height:100%;width:0;background:var(--brass);transition:width .06s linear}
+
+.err{background:color-mix(in srgb,var(--bad) 16%,var(--panel));border:1px solid var(--bad);border-radius:12px;padding:12px 14px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1>Fret <span>Finder</span></h1>
+    <button type="button" class="stats" id="progBtn" aria-label="Open progress">
+      <span><b id="stStreak">0</b> streak</span>
+      <span><b id="stFirst">0/0</b> today</span>
+      <span class="more">Progress ›</span>
+    </button>
+  </header>
+
+  <div class="seg two" id="gameSeg" role="group" aria-label="Game">
+    <button type="button" data-game="notes">Play it back</button>
+    <button type="button" data-game="interval">Intervals</button>
+  </div>
+  <div class="seg" id="modeSeg" role="group" aria-label="Which string">
+    <button type="button" data-mode="any">Any string</button>
+    <button type="button" data-mode="pick">One string</button>
+    <button type="button" data-mode="random">Random string</button>
+  </div>
+  <div class="chips" id="stringChips" role="group" aria-label="String to play on" hidden></div>
+  <div class="row">
+    <span class="rangeCtl">Frets
+      <select id="fretMin" aria-label="Lowest fret"></select>
+      to
+      <select id="fretMax" aria-label="Highest fret"></select>
+    </span>
+    <label for="runLen" id="runLenLbl">Notes per round <select id="runLen">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="5">5</option>
+    </select></label>
+  </div>
+  <div class="opts">
+    <label for="showName"><input type="checkbox" id="showName"> Show note names</label>
+    <label for="natural"><input type="checkbox" id="natural"> Natural notes only</label>
+    <label for="focus"><input type="checkbox" id="focus"> Focus on weak spots</label>
+    <label for="twice"><input type="checkbox" id="twice"> Play twice</label>
+  </div>
+
+  <section class="stage" aria-label="Practice">
+    <div class="ask" id="ask">Tap Start. You'll hear a note, then play it back on your guitar.</div>
+    <div class="target" id="target"><span class="tn hid">?</span></div>
+    <div class="btns">
+      <button type="button" class="btn primary" id="startBtn">Start</button>
+      <button type="button" class="btn" id="playBtn" hidden>Play again</button>
+      <button type="button" class="btn" id="revealBtn" hidden>Reveal</button>
+      <button type="button" class="btn" id="nextBtn" hidden>Next</button>
+    </div>
+    <div class="feedback" id="feedback" aria-live="polite"></div>
+    <button type="button" class="linkbtn" id="overrideBtn" hidden>I did play it on that string, count it</button>
+    <div class="err" id="err" hidden></div>
+  </section>
+
+  <section class="live" aria-label="What the mic hears">
+    <div class="liveNote dim" id="liveNote">–</div>
+    <div class="meter" aria-hidden="true"><div class="needle" id="needle"></div></div>
+    <div class="liveMeta">
+      <span>Heard: <b class="mono" id="liveCents">mic off</b></span>
+      <span>String: <b id="liveString">–</b></span>
+    </div>
+    <div class="micRow">
+      <span>Mic level</span>
+      <span class="lvl" title="Notes count once the bar passes the gold line"><i id="lvlBar"></i><b id="lvlGate"></b></span>
+      <label for="sens">Sensitivity</label>
+      <input type="range" id="sens" min="1" max="10" step="1" aria-describedby="sensHelp">
+      <span></span><span id="sensHelp" style="font-size:12px">Turn it up if quiet notes don't register. Turn it down if room noise triggers notes.</span>
+    </div>
+  </section>
+
+  <section class="board" aria-label="Fretboard">
+    <div class="boardScroll"><svg id="fb" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fretboard showing the target and what you played"></svg></div>
+    <div class="legend">
+      <span id="lgRef" hidden><i class="lg-r"></i>reference</span>
+      <span><i class="lg-t"></i>target</span>
+      <span><i class="lg-h"></i>you, right</span>
+      <span><i class="lg-m"></i>you, wrong</span>
+      <span><i class="lg-q"></i>could be any of these</span>
+    </div>
+  </section>
+
+  <section class="calbar">
+    <p>String detection: <b id="calStatus">not calibrated</b></p>
+    <button type="button" class="btn" id="calBtn">Calibrate</button>
+  </section>
+</main>
+
+<div class="sheet" id="calSheet" hidden role="dialog" aria-modal="true" aria-labelledby="calTitle">
+  <div class="sheetIn">
+    <h2 id="calTitle">Calibrate strings</h2>
+    <p>Pluck each note once and let it ring. Use your usual pick and picking spot. The app saves how each string sounds on your guitar and phone. Tap any cell to redo it.</p>
+    <div class="calPrompt" id="calPrompt"></div>
+    <div class="calMic"><span>Mic</span><span class="bar"><i id="calLevel"></i></span></div>
+    <div class="calHeard" id="calHeard" aria-live="polite"></div>
+    <table class="calGrid" id="calGrid"></table>
+    <div class="btns">
+      <button type="button" class="btn primary" id="calDone">Done</button>
+      <button type="button" class="btn" id="calClear">Clear all</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="progSheet" hidden role="dialog" aria-modal="true" aria-labelledby="progTitle">
+  <div class="sheetIn">
+    <h2 id="progTitle">Progress</h2>
+    <div class="tiles" id="progTiles"></div>
+    <h3>Last 14 days</h3>
+    <svg id="histChart" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rounds per day, with first-try rounds in green"></svg>
+    <div class="legend"><span><i class="lg-h"></i>first try</span><span><i style="background:var(--line)"></i>other rounds</span></div>
+    <h3>Notes you miss most</h3>
+    <ul class="weak" id="weakList"></ul>
+    <div class="btns">
+      <button type="button" class="btn primary" id="progDone">Done</button>
+      <button type="button" class="btn" id="progReset">Reset progress</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- constants ----------
+const OPEN = [40, 45, 50, 55, 59, 64];            // E2 A2 D3 G3 B3 E4, index 0 = low E (6th string)
+const SNAME = ['E', 'A', 'D', 'G', 'B', 'e'];
+const SLONG = ['low E', 'A', 'D', 'G', 'B', 'high e'];
+const NN = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const CAL_FRETS = [0, 5, 12];
+const PHYS_MAX = 19;          // highest fret considered when guessing a string
+const PLUCK_DUR = 1.6;        // seconds
+const noteName = m => NN[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+const fretWord = f => f === 0 ? 'open' : f + (f === 1 ? 'st' : f === 2 ? 'nd' : f === 3 ? 'rd' : 'th') + ' fret';
+
+// DSP-START
+function makeFFT(N) {
+  const levels = Math.round(Math.log2(N));
+  const rev = new Uint32Array(N);
+  for (let i = 0; i < N; i++) { let r = 0, x = i; for (let b = 0; b < levels; b++) { r = (r << 1) | (x & 1); x >>= 1; } rev[i] = r; }
+  const cs = new Float64Array(N / 2), sn = new Float64Array(N / 2);
+  for (let i = 0; i < N / 2; i++) { cs[i] = Math.cos(2 * Math.PI * i / N); sn[i] = Math.sin(2 * Math.PI * i / N); }
+  return function (re, im) {
+    for (let i = 0; i < N; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    for (let size = 2; size <= N; size <<= 1) {
+      const half = size >> 1, step = N / size;
+      for (let i = 0; i < N; i += size) {
+        for (let j = 0, k = 0; j < half; j++, k += step) {
+          const l = i + j + half;
+          const tre = re[l] * cs[k] + im[l] * sn[k];
+          const tim = im[l] * cs[k] - re[l] * sn[k];
+          re[l] = re[i + j] - tre; im[l] = im[i + j] - tim;
+          re[i + j] += tre; im[i + j] += tim;
+        }
+      }
+    }
+  };
+}
+
+// YIN pitch detection on a 2x-decimated copy of the newest samples.
+const YIN_W = 1024;
+const dsBuf = new Float32Array(8192), yd = new Float32Array(2048), ydp = new Float32Array(2048);
+function detectPitch(buf, sr) {
+  const n = buf.length >> 1;
+  for (let i = 0; i < n; i++) dsBuf[i] = (buf[2 * i] + buf[2 * i + 1]) * 0.5;
+  const fs = sr / 2;
+  const tauMin = Math.max(2, Math.floor(fs / 1200));
+  const tauMax = Math.min(Math.floor(fs / 60), n - YIN_W - 2);
+  const s = n - YIN_W - tauMax - 1;
+  let run = 0; ydp[0] = 1;
+  for (let tau = 1; tau <= tauMax; tau++) {
+    let sum = 0;
+    for (let i = 0; i < YIN_W; i++) { const d = dsBuf[s + i] - dsBuf[s + i + tau]; sum += d * d; }
+    yd[tau] = sum; run += sum;
+    ydp[tau] = run > 0 ? sum * tau / run : 1;
+  }
+  let tau = -1;
+  for (let t = tauMin; t < tauMax; t++) {
+    if (ydp[t] < 0.12) { while (t + 1 < tauMax && ydp[t + 1] < ydp[t]) t++; tau = t; break; }
+  }
+  if (tau < 0) {
+    let mv = 1e9;
+    for (let t = tauMin; t < tauMax; t++) if (ydp[t] < mv) { mv = ydp[t]; tau = t; }
+    if (mv > 0.35) return null;
+  }
+  let tr = tau;
+  if (tau > 1 && tau < tauMax) {
+    const a = ydp[tau - 1], b = ydp[tau], c = ydp[tau + 1], den = a + c - 2 * b;
+    if (den > 0) tr = tau + 0.5 * (a - c) / den;
+  }
+  return { f: fs / tr, clarity: 1 - ydp[tau] };
+}
+
+// Harmonic profile: level of harmonics 1..8 in dB, relative to their mean.
+const FFT_N = 8192, WIN_N = 4096, HARM = 8;
+const fft = makeFFT(FFT_N), fre = new Float64Array(FFT_N), fim = new Float64Array(FFT_N);
+const hann = new Float64Array(WIN_N);
+for (let i = 0; i < WIN_N; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (WIN_N - 1));
+function harmonicProfile(buf, sr, f0) {
+  const off = buf.length - WIN_N;
+  for (let i = 0; i < FFT_N; i++) { fre[i] = i < WIN_N ? buf[off + i] * hann[i] : 0; fim[i] = 0; }
+  fft(fre, fim);
+  const binHz = sr / FFT_N, fmax = Math.min(7000, sr / 2 - 100);
+  const db = new Array(HARM).fill(null);
+  let sum = 0, n = 0;
+  for (let k = 1; k <= HARM; k++) {
+    const fk = k * f0; if (fk > fmax) break;
+    const c = fk / binHz, w = Math.max(2, c * 0.03);
+    let best = 0;
+    for (let b = Math.max(1, Math.floor(c - w)); b <= Math.ceil(c + w); b++) {
+      const p = fre[b] * fre[b] + fim[b] * fim[b]; if (p > best) best = p;
+    }
+    const v = 10 * Math.log10(best + 1e-12);
+    db[k - 1] = v; sum += v; n++;
+  }
+  if (n < 3) return null;
+  const mean = sum / n;
+  return db.map(v => v == null ? null : Math.max(-45, Math.min(25, v - mean)));
+}
+
+// Karplus-Strong plucked string with fractional delay for accurate pitch.
+function pluck(sr, midi, dur) {
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+  const len = Math.floor(sr * dur), y = new Float32Array(len);
+  const P = sr / f - 0.5;
+  const n0 = Math.ceil(P) + 2;
+  const ex = new Float32Array(n0); let lp = 0;
+  for (let i = 0; i < n0; i++) { lp += 0.55 * ((Math.random() * 2 - 1) - lp); ex[i] = lp; }
+  const d = Math.max(1, Math.round(P / 6));
+  for (let i = 0; i < n0; i++) y[i] = ex[i] - (i >= d ? ex[i - d] : 0) * 0.8;
+  const T60 = 4.5, g = Math.pow(0.001, 1 / (f * T60));
+  for (let n = n0; n < len; n++) {
+    const t = n - P, i = Math.floor(t), fr = t - i;
+    const a = y[i] * (1 - fr) + y[i + 1] * fr;
+    const b = y[i - 1] * (1 - fr) + y[i] * fr;
+    y[n] = g * 0.5 * (a + b);
+  }
+  let peak = 0; for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(y[i]));
+  const fade = Math.floor(sr * 0.25), k = peak > 0 ? 0.85 / peak : 1;
+  for (let i = 0; i < len; i++) { let v = y[i] * k; if (i > len - fade) v *= (len - i) / fade; y[i] = v; }
+  return y;
+}
+// DSP-END
+
+// ---------- storage ----------
+const PREFIX = 'ff.';
+// One-time move of data saved under the app's old name (etf.*) so calibration and settings carry over.
+try {
+  ['settings', 'calib', 'extras', 'progress'].forEach(k => {
+    const old = localStorage.getItem('etf.' + k);
+    if (old != null && localStorage.getItem(PREFIX + k) == null) localStorage.setItem(PREFIX + k, old);
+  });
+} catch (e) { /* storage off */ }
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); } catch (e) { /* storage off */ } }
+};
+const settings = Object.assign({ game: 'notes', mode: 'any', string: 2, fretMin: 0, fretMax: 5, runLen: 1, showName: false, natural: false, focus: false, twice: false, sens: 7 }, store.get('settings', {}));
+const okInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+if (!['any', 'pick', 'random'].includes(settings.mode)) settings.mode = 'any';
+if (!['notes', 'interval'].includes(settings.game)) settings.game = 'notes';
+if (!okInt(settings.string, 0, 5)) settings.string = 2;
+if (!okInt(settings.fretMax, 0, 15)) settings.fretMax = 5;
+if (!okInt(settings.fretMin, 0, settings.fretMax)) settings.fretMin = 0;
+if (!okInt(settings.runLen, 1, 5)) settings.runLen = 1;
+if (!okInt(settings.sens, 1, 10)) settings.sens = 7;
+const saveSettings = () => store.set('settings', settings);
+let calib = store.get('calib', null);
+if (!Array.isArray(calib) || calib.length !== 6) calib = OPEN.map(() => CAL_FRETS.map(() => null));
+let extras = store.get('extras', []);
+if (!Array.isArray(extras)) extras = [];
+let featSd = null;
+
+// ---------- saved progress ----------
+const dayKey = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const freshProgress = () => ({ rounds: 0, firstTry: 0, streak: 0, best: 0, notes: {}, days: {} });
+let progress = store.get('progress', null);
+if (!progress || typeof progress !== 'object' || typeof progress.notes !== 'object' || typeof progress.days !== 'object') progress = freshProgress();
+const saveProgress = () => store.set('progress', progress);
+function recordRound(first) {
+  progress.rounds++;
+  if (first) { progress.firstTry++; progress.streak++; progress.best = Math.max(progress.best, progress.streak); } else progress.streak = 0;
+  const k = dayKey(), d = progress.days[k] || (progress.days[k] = [0, 0]);
+  d[0]++; if (first) d[1]++;
+  const keys = Object.keys(progress.days).sort();
+  while (keys.length > 120) delete progress.days[keys.shift()];
+  saveProgress();
+}
+function recordNote(midi, missed) {
+  const r = progress.notes[midi] || (progress.notes[midi] = [0, 0]);
+  r[0]++; if (missed) r[1]++;
+  saveProgress();
+}
+function breakStreak() { if (progress.streak) { progress.streak = 0; saveProgress(); } }
+// Weak-spot focus: notes you miss more often get picked more often. Unplayed notes sit in the middle.
+function noteWeight(midi) {
+  if (!settings.focus) return 1;
+  const r = progress.notes[midi], n = r ? r[0] : 0, miss = r ? r[1] : 0;
+  return 0.4 + 3 * (miss + 0.5) / (n + 2);
+}
+
+// ---------- string classification ----------
+function calCount() { return calib.reduce((a, r) => a + r.filter(Boolean).length, 0); }
+function computeSd() {
+  const sd = new Array(HARM).fill(6);
+  for (let k = 0; k < HARM; k++) {
+    const vals = [];
+    calib.forEach(r => r.forEach(v => { if (v && v[k] != null) vals.push(v[k]); }));
+    if (vals.length >= 4) {
+      const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+      sd[k] = Math.max(3, Math.sqrt(vals.reduce((a, b) => a + (b - m) * (b - m), 0) / vals.length));
+    }
+  }
+  featSd = sd;
+}
+function dist(a, b) {
+  let s = 0, n = 0;
+  for (let k = 0; k < HARM; k++) {
+    if (a[k] == null || b[k] == null) continue;
+    const z = (a[k] - b[k]) / featSd[k]; s += z * z; n++;
+  }
+  return n ? s / n : Infinity;
+}
+function expected(s, f) {
+  const pts = [];
+  CAL_FRETS.forEach((cf, j) => { if (calib[s][j]) pts.push({ cf, v: calib[s][j] }); });
+  if (!pts.length) return null;
+  let lo = null, hi = null;
+  for (const p of pts) { if (p.cf <= f) lo = p; if (p.cf >= f && !hi) hi = p; }
+  if (!lo) return hi.v;
+  if (!hi || lo === hi) return lo.v;
+  const t = (f - lo.cf) / (hi.cf - lo.cf);
+  return lo.v.map((x, i) => (x == null || hi.v[i] == null) ? (x ?? hi.v[i]) : x + (hi.v[i] - x) * t);
+}
+function candidates(m) {
+  const c = [];
+  for (let s = 0; s < 6; s++) { const f = m - OPEN[s]; if (f >= 0 && f <= PHYS_MAX) c.push({ s, f }); }
+  return c;
+}
+function classify(m, feat) {
+  const cands = candidates(m);
+  if (!cands.length) return { string: null, cands };
+  if (cands.length === 1) return { string: cands[0].s, fret: cands[0].f, certain: true, cands };
+  if (!feat) return { string: null, cands };
+  for (const c of cands) {
+    const e = expected(c.s, c.f);
+    if (!e) return { string: null, cands, uncal: true };
+    let d = dist(feat, e);
+    for (const x of extras) if (x.s === c.s && Math.abs(x.f - c.f) <= 2) d = Math.min(d, dist(feat, x.v) * 0.9);
+    if (c.f > 12) d += 0.3;
+    c.d = d;
+  }
+  const sorted = cands.slice().sort((a, b) => a.d - b.d);
+  const best = sorted[0], second = sorted[1];
+  const conf = second ? 1 - best.d / (second.d + 1e-9) : 1;
+  return { string: best.s, fret: best.f, conf, cands };
+}
+
+// ---------- DOM refs ----------
+const $ = id => document.getElementById(id);
+const el = {
+  gameSeg: $('gameSeg'), natural: $('natural'), focus: $('focus'), twice: $('twice'),
+  modeSeg: $('modeSeg'), chips: $('stringChips'), fretMin: $('fretMin'), fretMax: $('fretMax'), runLen: $('runLen'), showName: $('showName'),
+  ask: $('ask'), target: $('target'), start: $('startBtn'), play: $('playBtn'), reveal: $('revealBtn'), next: $('nextBtn'),
+  feedback: $('feedback'), override: $('overrideBtn'), err: $('err'),
+  liveNote: $('liveNote'), needle: $('needle'), liveCents: $('liveCents'), liveString: $('liveString'),
+  fb: $('fb'), calStatus: $('calStatus'), calBtn: $('calBtn'),
+  sheet: $('calSheet'), calPrompt: $('calPrompt'), calHeard: $('calHeard'), calGrid: $('calGrid'),
+  lvlBar: $('lvlBar'), lvlGate: $('lvlGate'), sens: $('sens'),
+  calDone: $('calDone'), calClear: $('calClear'), calLevel: $('calLevel')
+};
+
+// ---------- audio ----------
+let ctx = null, analyser = null, timeBuf = null, running = false, ignoreUntil = 0, wakeLock = null, micStream = null;
+const pluckCache = new Map();
+
+function showErr(msg) { el.err.textContent = msg; el.err.hidden = !msg; }
+
+async function startAudio() {
+  if (running) return true;
+  showErr('');
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showErr('The microphone only works when this page is opened from an https:// address. See the setup notes that came with the file.');
+    return false;
+  }
+  try {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* not supported */ }
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    micStream = stream;
+    stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => { running = false; }));
+    const src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0;
+    src.connect(analyser);
+    timeBuf = new Float32Array(analyser.fftSize);
+    running = true;
+    requestWake();
+    requestAnimationFrame(loop);
+    return true;
+  } catch (e) {
+    showErr(e && e.name === 'NotAllowedError'
+      ? 'Microphone access was blocked. Allow the microphone for this site in your browser settings, then reload.'
+      : 'Could not start the microphone (' + (e && e.message || e) + ').');
+    return false;
+  }
+}
+async function requestWake() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* optional */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !ctx) return;
+  // Phones can cut the mic while the app is in the background. Reconnect it when you come back.
+  const dead = !micStream || micStream.getAudioTracks().every(t => t.readyState === 'ended');
+  if (running && !dead) { ctx.resume(); requestWake(); }
+  else if (micStream) { running = false; startAudio(); }
+});
+
+const RUN_GAP = 0.8;   // seconds between notes in a run
+const PASS_GAP = 1.5;  // seconds between the two passes when "Play twice" is on
+let playing = [];
+function playNotes(midis, twice) {
+  if (!ctx || !midis.length) return;
+  playing.forEach(p => { try { p.stop(); } catch (e) { /* already stopped */ } });
+  playing = [];
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; lp.Q.value = 0.5;
+  lp.connect(ctx.destination);
+  const seq = [];
+  let at0 = ctx.currentTime + 0.05;
+  for (let pass = 0; pass < (twice ? 2 : 1); pass++) {
+    midis.forEach(m => { seq.push({ midi: m, at: at0 }); at0 += RUN_GAP; });
+    at0 += PASS_GAP - RUN_GAP;
+  }
+  seq.forEach(({ midi, at }, i) => {
+    let data = pluckCache.get(midi);
+    if (!data) { data = pluck(ctx.sampleRate, midi, PLUCK_DUR); pluckCache.set(midi, data); }
+    const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
+    buf.getChannelData(0).set(data);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(1, at);
+    if (i < seq.length - 1) {            // damp each note as the next one starts
+      const cut = seq[i + 1].at;
+      g.gain.setValueAtTime(1, cut - 0.04);
+      g.gain.linearRampToValueAtTime(0, cut + 0.02);
+    }
+    src.connect(g); g.connect(lp);
+    src.start(at);
+    playing.push(src);
+  });
+  // don't grade the app's own notes
+  ignoreUntil = performance.now() + (seq[seq.length - 1].at - ctx.currentTime + PLUCK_DUR + 0.35) * 1000;
+}
+
+// ---------- listening loop ----------
+let noise = 0, slowRms = 0, lastVoiced = 0;
+let tr = null;                  // current note tracker
+let needOnset = false, lastJudgedM = null;
+let shownNote = null;
+
+// Sensitivity 1..10 sets how far above the room noise a sound must be (k) and an absolute minimum level (floor).
+// 1 = needs a loud amp or acoustic, 10 = picks up an unplugged electric from a distance in a quiet room.
+function gateParams() {
+  const s = settings.sens;
+  return { k: 4 - (s - 1) * 0.25, floor: 0.004 * Math.pow(10, -(s - 1) / 4.5) };
+}
+const lvlPct = v => Math.max(0, Math.min(100, (20 * Math.log10(v + 1e-9) + 90) / 80 * 100));
+let lvlT = 0;
+function showLevel(rms, gate) {
+  const now = performance.now(); if (now - lvlT < 50) return; lvlT = now;
+  el.lvlBar.style.width = lvlPct(rms) + '%';
+  el.lvlBar.classList.toggle('on', rms >= gate);
+  el.lvlGate.style.left = lvlPct(gate) + '%';
+}
+
+function newTracker(m, now) { return { m, t0: now, frames: 0, cents: [], feat: new Array(HARM).fill(0), featCnt: new Array(HARM).fill(0), featN: 0, done: false }; }
+
+function loop() {
+  if (!running) return;
+  requestAnimationFrame(loop);
+  analyser.getFloatTimeDomainData(timeBuf);
+  const now = performance.now(), sr = ctx.sampleRate;
+  let rms = 0;
+  for (let i = timeBuf.length - 2048; i < timeBuf.length; i++) rms += timeBuf[i] * timeBuf[i];
+  rms = Math.sqrt(rms / 2048);
+
+  // Room-noise estimate: drops quickly, rises while no pitch is heard, and holds still while a note
+  // is sounding, so a quiet note that rings for a while isn't mistaken for background noise.
+  const g = gateParams();
+  if (noise === 0 && rms > 0) noise = rms;
+  else if (rms < noise) noise += (rms - noise) * 0.1;
+  const gate = Math.max(g.floor, noise * g.k);
+  const unvoiced = () => { if (rms > noise) noise = Math.min(rms, noise * 1.01); };
+  showLevel(rms, gate);
+  const onset = rms > gate && rms > slowRms * 1.8;
+  slowRms = slowRms * 0.85 + rms * 0.15;
+  if (calOpen) el.calLevel.style.width = lvlPct(rms) + '%';
+
+  if (now < ignoreUntil) { tr = null; setLive(null, 0, 'playing note…'); return; }
+  if (onset) needOnset = false;
+  if (rms < gate) {
+    unvoiced();
+    if (now - lastVoiced > 120) { tr = null; needOnset = false; }
+    setLive(null, 0, 'listening'); return;
+  }
+  const p = detectPitch(timeBuf, sr);
+  if (!p || p.f < 60 || p.f > 1400) { unvoiced(); if (now - lastVoiced > 150) tr = null; setLive(null, 0, 'listening'); return; }
+  lastVoiced = now;
+  const mf = 69 + 12 * Math.log2(p.f / 440), m = Math.round(mf), cents = (mf - m) * 100;
+  if (!tr || tr.m !== m || (onset && tr.done)) tr = newTracker(m, now);
+  tr.frames++; tr.cents.push(cents);
+  setLive(m, cents);
+
+  const age = now - tr.t0;
+  if (!tr.done && age >= 40 && tr.featN < 8) {
+    const v = harmonicProfile(timeBuf, sr, p.f);
+    if (v) {
+      for (let k = 0; k < HARM; k++) if (v[k] != null) { tr.feat[k] += v[k]; tr.featCnt[k]++; }
+      tr.featN++;
+    }
+  }
+  if (!tr.done && age >= 170 && tr.frames >= 5) {
+    tr.done = true;
+    if (needOnset && m === lastJudgedM) return;   // same ringing note, already graded
+    needOnset = true; lastJudgedM = m;
+    const feat = tr.featN >= 2 ? tr.feat.map((v, k) => tr.featCnt[k] ? v / tr.featCnt[k] : null) : null;
+    const cs = tr.cents.slice().sort((a, b) => a - b);
+    onNote(m, cs[cs.length >> 1], feat);
+  }
+}
+
+function setLive(m, cents, idle) {
+  if (m == null) {
+    el.liveNote.classList.add('dim');
+    if (el.liveCents.textContent !== idle) el.liveCents.textContent = idle;
+    el.needle.classList.remove('in');
+    return;
+  }
+  el.liveNote.classList.remove('dim');
+  if (shownNote !== m) { el.liveNote.textContent = noteName(m); shownNote = m; }
+  const c = Math.round(cents);
+  el.liveCents.textContent = noteName(m) + '  ' + (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c) + '¢';
+  el.needle.style.left = (50 + Math.max(-50, Math.min(50, cents))) + '%';
+  el.needle.classList.toggle('in', Math.abs(cents) <= 10);
+}
+
+// ---------- practice ----------
+let round = null, nextTimer = 0;
+const IV = ['unison', 'minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th', 'octave'];
+const ivText = d => d === 0 ? 'the same note' : Math.abs(d) > 12 ? Math.abs(d) + ' semitones ' + (d > 0 ? 'up' : 'down') : 'a ' + IV[Math.abs(d)] + (d > 0 ? ' up' : ' down');
+const NATURAL = new Set([0, 2, 4, 5, 7, 9, 11]);
+let lastGuess = null, lastFeat = null, lastM = null, lastRight = null;
+
+function rand(n) { return Math.floor(Math.random() * n); }
+function pickWeighted(pool) {
+  const w = pool.map(p => noteWeight(p.midi));
+  let x = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) { x -= w[i]; if (x <= 0) return pool[i]; }
+  return pool[pool.length - 1];
+}
+function positionsInRange() {
+  const out = [];
+  const strings = settings.mode === 'pick' ? [settings.string] : [0, 1, 2, 3, 4, 5];
+  const seen = new Set();
+  for (const s of strings) for (let f = settings.fretMin; f <= settings.fretMax; f++) {
+    const midi = OPEN[s] + f;
+    // In Any-string mode, count each pitch once so notes that exist on two strings aren't picked twice as often.
+    if (settings.mode === 'any') { if (seen.has(midi)) continue; seen.add(midi); }
+    out.push({ s, f, midi });
+  }
+  if (settings.natural) {
+    const nat = out.filter(p => NATURAL.has(p.midi % 12));
+    if (nat.length) return nat;           // a range with no natural notes falls back to all notes
+  }
+  return out;
+}
+// A round is 1-5 notes. Runs move by a 5th or less between notes so they sound like a phrase.
+function makeRound() {
+  const pos = positionsInRange(), notes = [];
+  const toNote = p => ({ midi: p.midi, string: settings.mode === 'any' ? null : p.s, fret: p.f });
+  if (settings.game === 'interval') {
+    // Interval mode: a shown reference note, then one note to find by ear, up to an octave away.
+    const partners = a => pos.filter(b => b.midi !== a.midi && Math.abs(b.midi - a.midi) <= 12);
+    let refs = pos.filter(a => partners(a).length);
+    if (round && round.ref) { const fresh = refs.filter(a => a.midi !== round.ref.midi); if (fresh.length) refs = fresh; }
+    if (refs.length) {
+      const a = refs[rand(refs.length)], b = pickWeighted(partners(a));
+      return { ref: { midi: a.midi, string: a.s, fret: a.f }, notes: [toNote(b)], idx: 0, attempts: 0, solved: false, revealed: false, undo: null };
+    }
+  }
+  for (let i = 0; i < settings.runLen; i++) {
+    const prev = notes[i - 1];
+    let pool = pos;
+    if (prev) {
+      const near = pos.filter(p => p.midi !== prev.midi && Math.abs(p.midi - prev.midi) <= 7);
+      if (near.length) pool = near;
+    } else if (round) {
+      const fresh = pos.filter(p => p.midi !== round.notes[0].midi);
+      if (fresh.length) pool = fresh;
+    }
+    notes.push(toNote(pickWeighted(pool)));
+  }
+  return { ref: null, notes, idx: 0, attempts: 0, solved: false, revealed: false, undo: null };
+}
+const cur = () => round.notes[round.idx];
+function newRound(play = true) {
+  clearTimeout(nextTimer);
+  round = makeRound();
+  lastGuess = null; lastM = null; lastRight = null;
+  setFeedback('');
+  el.override.hidden = true;
+  renderTarget(); drawMarks();
+  if (play) playRound();
+}
+function playRound() {
+  if (!round) return;
+  const midis = round.notes.map(n => n.midi);
+  if (round.ref) midis.unshift(round.ref.midi);
+  playNotes(midis, settings.twice);
+}
+
+function renderTarget() {
+  if (!round) return;
+  const n = round.notes.length, multi = n > 1;
+  const strs = round.notes.map(x => x.string);
+  let ask;
+  if (round.ref) {
+    const rf = round.ref, t = round.notes[0];
+    const where = settings.mode === 'any' ? 'on any string' : 'on the <strong>' + SLONG[t.string] + ' string</strong>';
+    ask = 'You’ll hear <strong>' + noteName(rf.midi) + '</strong> (' + SLONG[rf.string] + ' string, ' + fretWord(rf.fret) + '), then a second note. Find the second note and play it ' + where + '.';
+  } else if (settings.mode === 'any') {
+    ask = multi ? 'Play these ' + n + ' notes back in order, on <strong>any strings</strong>.' : 'Play this note back on <strong>any string</strong>.';
+  } else if (settings.mode === 'pick' || strs.every(s => s === strs[0])) {
+    ask = (multi ? 'Play these ' + n + ' notes back in order on the ' : 'Play this note back on the ') + '<strong>' + SLONG[strs[0]] + ' string</strong>.';
+  } else {
+    ask = 'Play them back in order on these strings: <strong>' + strs.map(s => SNAME[s]).join(' → ') + '</strong>';
+  }
+  el.ask.innerHTML = ask;
+  el.target.className = 'target' + (multi || round.ref ? ' run' : '') + (n >= 4 ? ' long' : '');
+  const nameHtml = m => noteName(m).replace(/(-?\d+)$/, '<small>$1</small>');
+  el.target.innerHTML = (round.ref ? '<span class="tn ref">' + nameHtml(round.ref.midi) + '</span><span class="arrow">→</span>' : '') + round.notes.map((x, i) => {
+    const done = round.solved || i < round.idx;
+    const show = settings.showName || round.revealed || done;
+    const cls = ['tn', done ? 'done' : '', show ? '' : 'hid', multi && !round.solved && i === round.idx ? 'cur' : ''].filter(Boolean).join(' ');
+    return '<span class="' + cls + '">' + (show ? nameHtml(x.midi) : '?') + '</span>';
+  }).join('');
+}
+function setFeedback(t, kind) { el.feedback.textContent = t; el.feedback.className = 'feedback' + (kind ? ' ' + kind : ''); }
+function renderStats() {
+  const d = progress.days[dayKey()] || [0, 0];
+  $('stStreak').textContent = progress.streak;
+  $('stFirst').textContent = d[1] + '/' + d[0];
+}
+
+function onNote(m, cents, feat) {
+  lastFeat = feat; lastM = m; lastRight = null;
+  if (calOpen) { calHandle(m, feat); return; }
+  const g = classify(m, feat); lastGuess = g;
+  renderGuess(g);
+  if (round && !round.solved) judge(m, g);
+  drawMarks();
+}
+function renderGuess(g) {
+  let t;
+  if (g.string != null) {
+    t = SLONG[g.string] + ', ' + fretWord(g.fret);
+    if (!g.certain && g.conf < 0.2) t += ' (unsure)';
+  } else if (g.uncal || (g.cands.length > 1 && calCount() === 0)) t = 'calibrate to detect';
+  else t = '–';
+  el.liveString.textContent = t;
+}
+const octWord = k => k === 1 ? 'one octave' : k === 2 ? 'two octaves' : k + ' octaves';
+function judge(m, g) {
+  const t = cur(), multi = round.notes.length > 1;
+  el.override.hidden = true; round.undo = null;   // "count it" only applies to the latest note
+  const pre = multi ? 'Note ' + (round.idx + 1) + ': ' : '';
+  if (m !== t.midi) {
+    lastRight = false;
+    round.attempts++; t.missed = true; breakStreak(); renderStats();
+    const diff = m - t.midi;
+    if (round.ref && diff % 12 !== 0) {
+      setFeedback('You played ' + noteName(m) + ', ' + ivText(m - round.ref.midi) + ' from ' + noteName(round.ref.midi) + '. Go ' + (diff < 0 ? 'higher.' : 'lower.'), 'bad');
+    } else if (diff % 12 === 0) {
+      setFeedback(pre + 'Right note (' + NN[t.midi % 12] + '), but ' + octWord(Math.abs(diff) / 12) + (diff > 0 ? ' too high.' : ' too low.'), 'bad');
+    } else {
+      setFeedback(pre + 'You played ' + noteName(m) + '. Go ' + (diff < 0 ? 'higher.' : 'lower.'), 'bad');
+    }
+    return;
+  }
+  if (t.string != null && g.string != null && g.string !== t.string) {
+    lastRight = false;
+    round.undo = { streak: progress.streak, attempts: round.attempts, missed: !!t.missed };
+    round.attempts++; t.missed = true; breakStreak(); renderStats();
+    setFeedback(pre + 'Right note and octave, but you played it on the ' + SLONG[g.string] + ' string (' + fretWord(g.fret) + '). It should be on the ' + SLONG[t.string] + ' string (' + fretWord(t.fret) + ').', 'bad');
+    el.override.textContent = 'I did play it on the ' + SLONG[t.string] + ' string, count it';
+    el.override.hidden = false;
+    return;
+  }
+  lastRight = true;
+  noteCorrect(t.string != null && g.string == null ? 'string not checked' : '');
+}
+function noteCorrect(note) {
+  const t = cur(), multi = round.notes.length > 1;
+  el.override.hidden = true; round.undo = null;
+  let where = '';
+  if (t.string != null) where = ' on the ' + SLONG[t.string] + ' string, ' + fretWord(t.fret);
+  else if (lastGuess && lastGuess.string != null) where = ' on the ' + SLONG[lastGuess.string] + ' string';
+  const tail = note ? ' (' + note + ')' : '';
+  recordNote(t.midi, !!t.missed);
+  if (multi && round.idx < round.notes.length - 1) {
+    round.idx++;
+    setFeedback('✓ ' + noteName(t.midi) + where + tail + '. Now note ' + (round.idx + 1) + '.', 'ok');
+    renderTarget(); drawMarks();
+    return;
+  }
+  round.solved = true;
+  recordRound(round.attempts === 0 && !round.revealed);
+  renderStats();
+  const iv = round.ref ? ', ' + ivText(t.midi - round.ref.midi) + ' from ' + noteName(round.ref.midi) + ',' : '';
+  setFeedback('✓ ' + (multi ? 'All ' + round.notes.length + ' notes' : noteName(t.midi) + iv + where) + tail, 'ok');
+  renderTarget(); drawMarks();
+  nextTimer = setTimeout(() => newRound(true), multi ? 2000 : 1600);
+}
+
+// ---------- fretboard ----------
+const FB = { left: 46, top: 16, gap: 21, right: 8 };
+let fbFrets = 12, fretW = 24, marksG = null;
+function fretX(f) { return f === 0 ? FB.left - 14 : FB.left + (f - 0.5) * fretW; }
+function stringY(s) { return FB.top + (5 - s) * FB.gap; }
+function drawBoard() {
+  fbFrets = settings.fretMax > 12 ? 15 : 12;
+  const VW = 360 + (fbFrets - 12) * 26;
+  fretW = (VW - FB.left - FB.right) / fbFrets;
+  const VH = FB.top + 5 * FB.gap + 30;
+  el.fb.setAttribute('viewBox', '0 0 ' + VW + ' ' + VH);
+  el.fb.style.minWidth = (fbFrets > 12 ? 420 : 340) + 'px';
+  const x0 = FB.left, x1 = VW - FB.right, y0 = stringY(5) - 9, y1 = stringY(0) + 9;
+  let h = '<rect class="fb-wood" x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="3"/>';
+  const midY = (stringY(2) + stringY(3)) / 2;
+  [3, 5, 7, 9, 15].forEach(f => { if (f <= fbFrets) h += '<circle class="fb-inlay" cx="' + fretX(f) + '" cy="' + midY + '" r="4"/>'; });
+  h += '<circle class="fb-inlay" cx="' + fretX(12) + '" cy="' + ((stringY(1) + stringY(2)) / 2) + '" r="4"/><circle class="fb-inlay" cx="' + fretX(12) + '" cy="' + ((stringY(3) + stringY(4)) / 2) + '" r="4"/>';
+  for (let f = 1; f <= fbFrets; f++) {
+    const x = x0 + f * fretW;
+    h += '<line class="fb-fret" x1="' + x + '" y1="' + y0 + '" x2="' + x + '" y2="' + y1 + '"/>';
+    h += '<text class="fb-num" x="' + fretX(f) + '" y="' + (y1 + 14) + '" text-anchor="middle">' + f + '</text>';
+  }
+  h += '<line class="fb-nut" x1="' + x0 + '" y1="' + y0 + '" x2="' + x0 + '" y2="' + y1 + '"/>';
+  for (let s = 0; s < 6; s++) {
+    const y = stringY(s);
+    h += '<line class="fb-string" x1="' + (x0 - 22) + '" y1="' + y + '" x2="' + x1 + '" y2="' + y + '" stroke-width="' + (2.6 - s * 0.32).toFixed(2) + '"/>';
+    h += '<text class="fb-label" x="4" y="' + (y + 4) + '">' + SNAME[s] + '</text>';
+  }
+  // dim the frets outside the practice range
+  if (settings.fretMin > 0) {
+    const xs = x0 - 24, xe = x0 + (settings.fretMin - 1) * fretW;
+    h += '<rect class="fb-dim" x="' + xs + '" y="' + y0 + '" width="' + (xe - xs) + '" height="' + (y1 - y0) + '"/>';
+  }
+  if (settings.fretMax < fbFrets) {
+    const xd = x0 + settings.fretMax * fretW;
+    h += '<rect class="fb-dim" x="' + xd + '" y="' + y0 + '" width="' + (x1 - xd) + '" height="' + (y1 - y0) + '"/>';
+  }
+  h += '<g id="marks"></g>';
+  el.fb.innerHTML = h;
+  marksG = el.fb.querySelector('#marks');
+  drawMarks();
+}
+function drawMarks() {
+  if (!marksG) return;
+  let h = '';
+  const dot = (s, f, cls, r) => (f <= fbFrets) ? '<circle class="' + cls + '" cx="' + fretX(f) + '" cy="' + stringY(s) + '" r="' + r + '"/>' : '';
+  if (round) {
+    const multi = round.notes.length > 1;
+    if (round.ref) h += dot(round.ref.string, round.ref.fret, 'mk-ref', 7);
+    round.notes.forEach((t, i) => {
+      if (!(round.revealed || round.solved || i < round.idx)) return;
+      const ps = t.string != null ? [{ s: t.string, f: t.fret }]
+        : candidates(t.midi).filter(c => c.f >= settings.fretMin && c.f <= settings.fretMax);
+      ps.forEach(c => {
+        h += dot(c.s, c.f, 'mk-target', 9);
+        if (multi && c.f <= fbFrets) h += '<text class="mk-num" x="' + (fretX(c.f) + 8) + '" y="' + (stringY(c.s) - 6) + '">' + (i + 1) + '</text>';
+      });
+    });
+  }
+  if (lastGuess && lastM != null) {
+    const cls = lastRight === true ? 'mk-hit' : lastRight === false ? 'mk-miss' : 'mk-heard';
+    if (lastGuess.string != null) h += dot(lastGuess.string, lastGuess.fret, cls, 6);
+    else lastGuess.cands.forEach(c => { h += dot(c.s, c.f, 'mk-maybe', 6); });
+  }
+  marksG.innerHTML = h;
+}
+
+// ---------- calibration ----------
+let calOpen = false, calCur = null;
+const calOrder = [];
+for (let s = 0; s < 6; s++) for (let j = 0; j < 3; j++) calOrder.push({ s, j });
+function nextEmpty(from) {
+  const start = from ? calOrder.findIndex(c => c.s === from.s && c.j === from.j) + 1 : 0;
+  for (let i = 0; i < calOrder.length; i++) {
+    const c = calOrder[(start + i) % calOrder.length];
+    if (!calib[c.s][c.j]) return c;
+  }
+  return null;
+}
+function renderCalStatus() {
+  const n = calCount();
+  el.calStatus.textContent = n === 18 ? 'calibrated' : n === 0 ? 'not calibrated, pitch only' : 'partly calibrated (' + n + '/18)';
+  el.calBtn.textContent = n === 18 ? 'Recalibrate' : 'Calibrate';
+}
+function renderCal() {
+  if (calCur) {
+    const s = calCur.s, f = CAL_FRETS[calCur.j];
+    el.calPrompt.innerHTML = '<div class="what">' + (f === 0 ? 'Pluck the open ' + SLONG[s] + ' string' : SLONG[s] + ' string, ' + fretWord(f)) + '</div><div class="note">' + noteName(OPEN[s] + f) + '</div>';
+  } else {
+    el.calPrompt.innerHTML = '<div class="what">All 18 notes saved</div><div class="note">Tap Done to practice</div>';
+  }
+  let h = '<tr><th class="s"></th>' + CAL_FRETS.map(f => '<th>' + (f === 0 ? 'open' : 'fret ' + f) + '</th>').join('') + '</tr>';
+  for (let s = 0; s < 6; s++) {
+    h += '<tr><th class="s">' + SNAME[s] + ' string</th>';
+    for (let j = 0; j < 3; j++) {
+      const cls = [calib[s][j] ? 'done' : '', calCur && calCur.s === s && calCur.j === j ? 'cur' : ''].join(' ').trim();
+      h += '<td><button type="button" class="' + cls + '" data-s="' + s + '" data-j="' + j + '">' + (calib[s][j] ? '✓ ' : '') + noteName(OPEN[s] + CAL_FRETS[j]) + '</button></td>';
+    }
+    h += '</tr>';
+  }
+  el.calGrid.innerHTML = h;
+}
+function calHandle(m, feat) {
+  if (!calCur) return;
+  const exp = OPEN[calCur.s] + CAL_FRETS[calCur.j];
+  if (m !== exp) { el.calHeard.textContent = 'Heard ' + noteName(m) + ', expecting ' + noteName(exp) + '.'; el.calHeard.className = 'calHeard bad'; return; }
+  if (!feat) { el.calHeard.textContent = 'Too short. Pluck again and let it ring.'; el.calHeard.className = 'calHeard bad'; return; }
+  calib[calCur.s][calCur.j] = feat;
+  store.set('calib', calib); computeSd();
+  el.calHeard.textContent = 'Saved ' + SLONG[calCur.s] + ' string, ' + fretWord(CAL_FRETS[calCur.j]) + '.';
+  el.calHeard.className = 'calHeard ok';
+  calCur = nextEmpty(calCur);
+  renderCal(); renderCalStatus();
+}
+async function openCal() {
+  if (!(await startAudio())) return;
+  clearTimeout(nextTimer);
+  calOpen = true; el.sheet.hidden = false;
+  calCur = nextEmpty(null) || { s: 0, j: 0 };
+  el.calHeard.textContent = ''; el.calHeard.className = 'calHeard';
+  renderCal();
+  el.calDone.focus();
+}
+function closeCal() {
+  calOpen = false; el.sheet.hidden = true;
+  if (round && round.solved) newRound(true);
+}
+el.calGrid.addEventListener('click', e => {
+  const b = e.target.closest('button[data-s]'); if (!b) return;
+  calCur = { s: +b.dataset.s, j: +b.dataset.j };
+  el.calHeard.textContent = ''; el.calHeard.className = 'calHeard';
+  renderCal();
+});
+el.calDone.addEventListener('click', closeCal);
+let clearArmed = 0;
+el.calClear.addEventListener('click', () => {
+  if (!clearArmed) {
+    el.calClear.textContent = 'Tap again to clear';
+    clearArmed = setTimeout(() => { clearArmed = 0; el.calClear.textContent = 'Clear all'; }, 3000);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = 0; el.calClear.textContent = 'Clear all';
+  calib = OPEN.map(() => CAL_FRETS.map(() => null)); extras = [];
+  store.set('calib', calib); store.set('extras', extras); computeSd();
+  calCur = { s: 0, j: 0 }; renderCal(); renderCalStatus();
+  el.calHeard.textContent = 'Cleared.'; el.calHeard.className = 'calHeard';
+});
+
+// ---------- controls ----------
+const fretOpts = Array.from({ length: 16 }, (_, f) => '<option value="' + f + '">' + (f === 0 ? 'open' : f) + '</option>').join('');
+el.fretMin.innerHTML = fretOpts;
+el.fretMax.innerHTML = fretOpts;
+function renderControls() {
+  el.gameSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.game === settings.game)));
+  $('runLenLbl').hidden = settings.game === 'interval';
+  $('lgRef').hidden = settings.game !== 'interval';
+  el.sens.value = String(settings.sens);
+  el.natural.checked = !!settings.natural; el.focus.checked = !!settings.focus; el.twice.checked = !!settings.twice;
+  el.modeSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === settings.mode)));
+  el.chips.hidden = settings.mode !== 'pick';
+  el.chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === settings.string)));
+  el.fretMin.value = String(settings.fretMin);
+  el.fretMax.value = String(settings.fretMax);
+  el.runLen.value = String(settings.runLen);
+  el.showName.checked = !!settings.showName;
+}
+el.chips.innerHTML = SNAME.map((n, s) => '<button type="button" data-s="' + s + '" aria-label="' + SLONG[s] + ' string">' + n + '</button>').join('');
+function settingsChanged(newOne) {
+  saveSettings(); renderControls();
+  if (newOne && running) newRound(true); else { renderTarget(); drawMarks(); }
+}
+el.modeSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.mode = b.dataset.mode; settingsChanged(true); });
+el.chips.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.string = +b.dataset.s; settingsChanged(true); });
+el.fretMin.addEventListener('change', () => {
+  settings.fretMin = +el.fretMin.value;
+  if (settings.fretMax < settings.fretMin) settings.fretMax = settings.fretMin;
+  drawBoard(); settingsChanged(true);
+});
+el.fretMax.addEventListener('change', () => {
+  settings.fretMax = +el.fretMax.value;
+  if (settings.fretMin > settings.fretMax) settings.fretMin = settings.fretMax;
+  drawBoard(); settingsChanged(true);
+});
+el.runLen.addEventListener('change', () => { settings.runLen = +el.runLen.value; settingsChanged(true); });
+el.showName.addEventListener('change', () => { settings.showName = el.showName.checked; settingsChanged(false); });
+el.gameSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.game = b.dataset.game; settingsChanged(true); });
+el.sens.addEventListener('input', () => { settings.sens = +el.sens.value; saveSettings(); });
+el.natural.addEventListener('change', () => { settings.natural = el.natural.checked; settingsChanged(true); });
+el.focus.addEventListener('change', () => { settings.focus = el.focus.checked; settingsChanged(false); });
+el.twice.addEventListener('change', () => { settings.twice = el.twice.checked; settingsChanged(false); });
+
+el.start.addEventListener('click', async () => {
+  if (!(await startAudio())) return;
+  el.start.hidden = true; el.play.hidden = false; el.reveal.hidden = false; el.next.hidden = false;
+  newRound(true);
+});
+el.play.addEventListener('click', playRound);
+el.reveal.addEventListener('click', () => {
+  if (!round || round.solved) return;
+  round.revealed = true; breakStreak(); renderStats(); renderTarget(); drawMarks();
+  round.notes.forEach((t, i) => { if (i >= round.idx) t.missed = true; });
+  let desc = round.notes.map(t => noteName(t.midi) + (t.string != null ? ' (' + SLONG[t.string] + ' string, ' + fretWord(t.fret) + ')' : '')).join(', ');
+  if (round.ref) desc += ', ' + ivText(round.notes[0].midi - round.ref.midi) + ' from ' + noteName(round.ref.midi);
+  setFeedback((round.notes.length > 1 ? 'The notes are ' : 'It’s ') + desc + '.', '');
+});
+el.next.addEventListener('click', () => {
+  if (round && !round.solved) {
+    if (cur().missed) recordNote(cur().midi, true);   // skipped after a miss counts as a miss; an untried skip doesn't
+    recordRound(false); renderStats();
+  }
+  newRound(true);
+});
+el.override.addEventListener('click', () => {
+  if (!round || round.solved) return;
+  const t = cur();
+  if (round.undo) { round.attempts = round.undo.attempts; progress.streak = round.undo.streak; t.missed = round.undo.missed; saveProgress(); }
+  if (lastFeat && t.string != null) {
+    extras.push({ s: t.string, f: t.fret, v: lastFeat });
+    if (extras.length > 80) extras = extras.slice(-80);
+    store.set('extras', extras);
+  }
+  if (lastGuess) { lastGuess = Object.assign({}, lastGuess, { string: t.string, fret: t.fret }); renderGuess(lastGuess); }
+  lastRight = true;
+  noteCorrect('');
+});
+el.calBtn.addEventListener('click', openCal);
+
+// ---------- progress sheet ----------
+const progSheet = $('progSheet');
+function renderProgress() {
+  const today = progress.days[dayKey()] || [0, 0];
+  const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '–';
+  $('progTiles').innerHTML = [
+    [today[1] + '/' + today[0], 'first try today (' + pct(today[1], today[0]) + ')'],
+    [progress.firstTry + '/' + progress.rounds, 'first try, all time (' + pct(progress.firstTry, progress.rounds) + ')'],
+    [progress.streak, 'current streak'],
+    [progress.best, 'best streak']
+  ].map(([v, l]) => '<div class="tile"><b>' + v + '</b><span>' + l + '</span></div>').join('');
+
+  // last 14 days: grey bar = rounds, green part = first-try rounds
+  const days = [];
+  for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push({ d, v: progress.days[dayKey(d)] || [0, 0] }); }
+  const W = 340, H = 120, base = 100, bw = W / 14, max = Math.max(5, ...days.map(x => x.v[0]));
+  let h = '';
+  days.forEach((x, i) => {
+    const bx = i * bw + 3, w = bw - 6, ha = base * x.v[0] / max, hk = base * x.v[1] / max;
+    if (x.v[0]) h += '<rect class="hc-all" x="' + bx + '" y="' + (base - ha) + '" width="' + w + '" height="' + ha + '" rx="2"><title>' + x.v[1] + ' of ' + x.v[0] + ' first try</title></rect>';
+    if (x.v[1]) h += '<rect class="hc-ok" x="' + bx + '" y="' + (base - hk) + '" width="' + w + '" height="' + hk + '" rx="2"/>';
+    if (i === 0 || i === 13 || i === 6) h += '<text class="hc-lbl" x="' + (i === 0 ? bx : i === 13 ? bx + w : bx + w / 2) + '" y="' + (base + 14) + '" text-anchor="' + (i === 0 ? 'start' : i === 13 ? 'end' : 'middle') + '">' + (i === 13 ? 'today' : (x.d.getMonth() + 1) + '/' + x.d.getDate()) + '</text>';
+  });
+  h += '<line x1="0" x2="' + W + '" y1="' + base + '" y2="' + base + '" style="stroke:var(--line)"/>';
+  const ch = $('histChart'); ch.setAttribute('viewBox', '0 0 ' + W + ' ' + H); ch.innerHTML = h;
+
+  const weak = Object.entries(progress.notes)
+    .filter(([, r]) => r[0] >= 3 && r[1] > 0)
+    .map(([m, r]) => ({ m: +m, n: r[0], miss: r[1], rate: r[1] / r[0] }))
+    .sort((a, b) => b.rate - a.rate || b.miss - a.miss).slice(0, 8);
+  $('weakList').innerHTML = weak.length
+    ? weak.map(w => '<li><b>' + noteName(w.m) + '</b><span class="wbar"><i style="width:' + Math.round(w.rate * 100) + '%"></i></span><span>missed ' + w.miss + ' of ' + w.n + '</span></li>').join('')
+    : '<li style="display:block">Play a few more rounds to see your weak spots. A note shows up here once you’ve played it 3 times.</li>';
+}
+function openProg() { clearTimeout(nextTimer); renderProgress(); progSheet.hidden = false; $('progDone').focus(); }
+function closeProg() { progSheet.hidden = true; if (round && round.solved) newRound(true); }
+$('progBtn').addEventListener('click', openProg);
+$('progDone').addEventListener('click', closeProg);
+let resetArmed = 0;
+$('progReset').addEventListener('click', () => {
+  const b = $('progReset');
+  if (!resetArmed) {
+    b.textContent = 'Tap again to reset';
+    resetArmed = setTimeout(() => { resetArmed = 0; b.textContent = 'Reset progress'; }, 3000);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = 0; b.textContent = 'Reset progress';
+  progress = freshProgress(); saveProgress(); renderProgress(); renderStats();
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (calOpen) closeCal(); else if (!progSheet.hidden) closeProg();
+});
+
+// ---------- init ----------
+computeSd();
+renderControls();
+renderCalStatus();
+renderStats();
+drawBoard();
+})();
+</script>
+</body>
+</html>
