@@ -46,6 +46,21 @@ The current code is `index.html` in this project: a single self-contained file w
 - Mic reconnects when you come back to the app after the phone cut it in the background.
 - Saved settings are checked on load, so bad values fall back to defaults.
 
+## Fluency features (v4)
+Addison's real goal is improvising fluency: playing what's in their head (or a song they hear) on guitar as easily as they whistle it. They don't know or want music theory, so the UI avoids theory words outside the older Intervals tab. The app should stay instrument-neutral where possible; only the fretboard picture is guitar-specific. The name "Fret Finder" is being replaced; no new name chosen yet.
+
+- **Tabs:** Notes (the old "Play it back"), Echo, Songs, Hum, Intervals. Settings that only apply to some tabs hide on the others, and most settings live in a collapsed **Options** panel (string mode, custom frets, notes per round, checkboxes, mic sensitivity).
+- **Echo:** the app plays a short tune and you play it back. Tunes start at 2 notes; a clean round (no misses, no reveal) adds a note, up to 8; two misses in a row at a length take one away (min 2). Saved as `progress.echoLen`. Tunes are built from one major key (picked at random from notes in range), mostly steps of 1 to 2 semitones, never more than 5, and end on the key's home note 60% of the time. Feedback says "close, go a little higher" instead of naming notes.
+- **Songs:** 9 public-domain songs (Twinkle Twinkle, Mary Had a Little Lamb, Happy Birthday, Row Row Row Your Boat, Ode to Joy, Jingle Bells, Are You Sleeping, London Bridge, Old MacDonald), stored as steps from the home note plus beats and lyrics, one syllable per note. Each song is moved to the key that keeps the most notes inside the neck area. The current line of words shows, with the syllable you're on underlined.
+  - **Wait for me:** you hear the first note, then play the song from memory; it waits on each note. "Hear next note" plays the note you're on, "Show me" puts it on the fretboard (counts as a miss for that note).
+  - **In time (rhythm mode):** first note, 4-click count-in, then the song runs at the chosen speed (50 to 104 beats a minute) whether or not you play. A note counts if it's the right pitch within ±40% of a beat (at least ±250 ms) of when it's due, measured from when the note started. The result is "You hit X of N notes in time", and the best score per song is saved.
+- **Hum:** tap Record hum, hum or whistle up to 10 notes, and recording stops after 1.5 s of quiet (or 12 s). The pitch track (up to 2.4 kHz while recording, so whistles work) is split into notes at short silences, loudness dips (so repeated notes stay separate) or pitch moves held ~0.1 s. Then you play it on guitar: the first note can be in any octave, and each next note must move the same distance as your hum did (±0.75 semitone, since voices drift). The tune shows as a row of bars by height; "Hear it" plays what the app heard, and "Show me" puts the numbered notes on the fretboard. Background-noise learning is paused while recording. In tests with synthetic hums (low, high, whistle range, legato, repeated notes, slightly off-pitch), all 6 tunes were split into the right notes.
+- **Neck areas (home base):** Home base (open–5), Frets 3–8, Frets 5–10, Frets 7–12, Whole neck, plus Custom frets. The next area unlocks after 15 first-try rounds out of your last 20 in the newest area (Notes, Echo and Intervals count). Locked areas show a lock in the Neck menu, and a progress line shows under it. Users who already had their own fret range keep it as Custom.
+- **Speed:** every first-try round in Notes, Echo and Intervals is timed from the end of the app's playback (time per note shown after the ✓). With **Speed goal** on, a bar fills while you play. The goal starts at 3 s a note (Intervals 4 s, Echo 2.5 s), tightens 15% after 5 beats in a row (min 0.6 s), and eases 15% after 6 misses of it in a row.
+- **Daily streak:** practice time counts between the notes you play (any gap over 15 s counts as 15 s). 5 minutes makes a day count. The header shows the day streak and today's minutes. The old "in a row" streak is still in Progress.
+- **Progress sheet:** day streak, minutes today, best day streak, recent time per note, first-try stats, in a row, neck areas open, Echo tune length.
+- New saved fields in `ff.progress`: `secs`, `bestDays`, `unlocked`, `zoneHist`, `speed`, `goal`, `goalRun`, `goalSlow`, `echoLen`, `songs`. New settings: `zone`, `songId`, `timed`, `tempo`, `speedGoal`.
+
 ## How it works
 - **Reference sound:** a Karplus-Strong plucked string with fractional delay (accurate to under 1 cent) and a 5.2 kHz low-pass filter. The mic input is ignored while the app's own notes play, plus 0.35 s.
 - **Background-noise removal (v3.2):** each frame's spectrum (newest 4096 samples, Hann, 8192 FFT) has 3× a learned background spectrum subtracted. The estimate averages quiet moments: it falls with a rate of 0.08 per frame, rises at 0.03, and doesn't rise while a note is tracked or while the app plays. Pitch is found by YIN on the autocorrelation of the cleaned spectrum (divided by the window's autocorrelation), and the gate and level meter use the cleaned level. On a clean note, precision is ±1 cent. With A/C-style noise louder than the note, about half the notes are caught and none are wrong. With quieter backgrounds, it catches 13 of 13.
@@ -70,16 +85,14 @@ The current code is `index.html` in this project: a single self-contained file w
 
 ## Hosting
 The mic only works over https, and the Claude chat preview blocks microphones, so the file has to be hosted:
-- **Netlify Drop:** drag a folder containing `index.html` onto app.netlify.com/drop.
-- **GitHub Pages:** an alternative.
+- **GitHub Pages:** https://addisonbuhl.github.io/fret-finder/ from the `main` branch of github.com/addisonbuhl/fret-finder. Pushing to `main` deploys in about a minute.
 
-On the phone, open the link and choose Share, then Add to Home Screen. Updating the app means re-uploading `index.html`. Calibration is kept as long as the site address stays the same.
+On the phone, open the link and choose Share, then Add to Home Screen. Calibration is kept as long as the site address stays the same.
 
 ## Known limits
 - On iPhone, the app's playback can sound quieter while the mic is active, because iOS switches to record-and-play mode.
 - Standard tuning only.
 
 ## Ideas backlog (not built yet)
-- **Tempo and rhythm:** play the run back in time with a click.
 - **Alternate tunings:** drop D, DADGAD, half-step down.
 - **Chord recognition:** play a chord and identify its root or quality. Much harder to build.
