@@ -15,8 +15,8 @@ The current code is `index.html` in this project: a single self-contained file w
 - Clear feedback when the note is right but in the wrong octave, or right but on the wrong string.
 - Multi-note runs.
 
-## Current features (v3.1)
-- **Games:** "Play it back" (hear notes, play them back) and "Intervals": the app shows and plays a reference note (with its string and fret), then plays a second note up to an octave away. You find and play the second note. Feedback names the interval, e.g. "You played E3, a major 3rd up from C3. Go higher." The reference shows as a filled brass dot on the fretboard. Notes per round is hidden in Intervals.
+## Current features (v3.2)
+- **Games:** (In Intervals, playing the reference note is ignored, not counted as a miss.) "Play it back" (hear notes, play them back) and "Intervals": the app shows and plays a reference note (with its string and fret), then plays a second note up to an octave away. You find and play the second note. Feedback names the interval, e.g. "You played E3, a major 3rd up from C3. Go higher." The reference shows as a filled brass dot on the fretboard. Notes per round is hidden in Intervals.
 - **Modes:** Any string, One string (E A D G B e chips), and Random string (each note gets its own string).
 - **Fret range:** separate low and high fret selects, each from open to 15. Frets outside the range are dimmed on the fretboard.
 - **Notes per round:** 1 to 5. A run plays as a phrase with 0.8 s between notes, and each step moves a 5th (7 semitones) or less. You play the notes in order, and the app grades each one before moving to the next. If you miss a note, you retry that note; the run doesn't restart.
@@ -48,6 +48,10 @@ The current code is `index.html` in this project: a single self-contained file w
 
 ## How it works
 - **Reference sound:** a Karplus-Strong plucked string with fractional delay (accurate to under 1 cent) and a 5.2 kHz low-pass filter. The mic input is ignored while the app's own notes play, plus 0.35 s.
+- **Background-noise removal (v3.2):** each frame's spectrum (newest 4096 samples, Hann, 8192 FFT) has 3× a learned background spectrum subtracted. The estimate averages quiet moments: it falls with a rate of 0.08 per frame, rises at 0.03, and doesn't rise while a note is tracked or while the app plays. Pitch is found by YIN on the autocorrelation of the cleaned spectrum (divided by the window's autocorrelation), and the gate and level meter use the cleaned level. On a clean note, precision is ±1 cent. With A/C-style noise louder than the note, about half the notes are caught and none are wrong. With quieter backgrounds, it catches 13 of 13.
+- **Mic level meter (v3.2):** the gold line is fixed at 60%, and the bar shows the level relative to the threshold, so turning sensitivity up makes the bar bigger.
+- **Tuner smoothing (v3.2):** it shows the median of confident readings (clarity ≥ 0.7) from the last 0.9 s that agree on the note, and holds for 1 s between plucks.
+- **App note length (v3.2):** 0.8 s with T60 2.2 s (was 1.6 s and 4.5 s), so the mic listens again sooner.
 - **Quiet input handling (v3.1):** pitch and loudness are read from a band-passed copy of the mic (55 Hz high-pass, two 1.8 kHz low-passes), which removes most mic hiss. String detection still reads the unfiltered mic. The room-noise estimate drops fast, rises only while no pitch is heard, and holds still while a note sounds. Before, it slowly crept up to the level of a quiet ringing note and then shut that note out. When YIN finds no dip under 0.12, it takes the first dip within 0.06 of the deepest one, which avoids reading an octave low on noisy input. In tests with recorded quiet plucks (note level about 3× the hiss), the old build detected 0 of 12 notes and the new one detected 12 of 12, all at the right pitch. Noise alone triggered nothing.
 - **Pitch:** YIN on a copy of the newest 4096 samples, decimated 2×, with a 1024-sample window. The range is 60 to 1200 Hz, which covers drop D up past the 15th fret. In tests on synthesized notes across all strings and frets 0 to 15 at 44.1 and 48 kHz, it was within about 1 cent with no octave errors at normal levels.
 - **Note grading:**

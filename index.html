@@ -110,7 +110,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
 .lvl{position:relative;height:8px;border-radius:4px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
 .lvl i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--muted)}
 .lvl i.on{background:var(--ok)}
-.lvl b{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--brass);left:50%}
+.lvl b{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--brass);left:60%}
 .micRow input[type=range]{width:100%;accent-color:var(--brass)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 
@@ -240,7 +240,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
       <span class="lvl" title="Notes count once the bar passes the gold line"><i id="lvlBar"></i><b id="lvlGate"></b></span>
       <label for="sens">Sensitivity</label>
       <input type="range" id="sens" min="1" max="10" step="1" aria-describedby="sensHelp">
-      <span></span><span id="sensHelp" style="font-size:12px">Turn it up if quiet notes don't register. Turn it down if room noise triggers notes.</span>
+      <span></span><span id="sensHelp" style="font-size:12px">Notes count when the bar turns green and passes the gold line. Turn it up if your notes don't get there. Turn it down if the room alone gets there.</span>
     </div>
   </section>
 
@@ -322,7 +322,7 @@ const SLONG = ['low E', 'A', 'D', 'G', 'B', 'high e'];
 const NN = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 const CAL_FRETS = [0, 5, 12];
 const PHYS_MAX = 19;          // highest fret considered when guessing a string
-const PLUCK_DUR = 1.6;        // seconds
+const PLUCK_DUR = 0.8;        // seconds; short, so the phone is quiet again quickly and the mic can hear you
 const noteName = m => NN[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const fretWord = f => f === 0 ? 'open' : f + (f === 1 ? 'st' : f === 2 ? 'nd' : f === 3 ? 'rd' : 'th') + ' fret';
 
@@ -367,6 +367,10 @@ function detectPitch(buf, sr) {
     yd[tau] = sum; run += sum;
     ydp[tau] = run > 0 ? sum * tau / run : 1;
   }
+  return pickTau(tauMin, tauMax, fs);
+}
+// Shared YIN step: find the period from the normalised difference curve in ydp.
+function pickTau(tauMin, tauMax, fs) {
   let tau = -1;
   for (let t = tauMin; t < tauMax; t++) {
     if (ydp[t] < 0.12) { while (t + 1 < tauMax && ydp[t + 1] < ydp[t]) t++; tau = t; break; }
@@ -394,6 +398,62 @@ const FFT_N = 8192, WIN_N = 4096, HARM = 8;
 const fft = makeFFT(FFT_N), fre = new Float64Array(FFT_N), fim = new Float64Array(FFT_N);
 const hann = new Float64Array(WIN_N);
 for (let i = 0; i < WIN_N; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (WIN_N - 1));
+
+// Background-noise removal (A/C, fans, hum, mic hiss).
+// Every frame takes the spectrum of the newest 4096 samples. The app keeps a running estimate of the
+// steady background spectrum: it averages the quiet moments between notes, and it doesn't rise at all
+// while a note is being tracked, so your own notes don't get learned as noise. NOISE_OVER times that
+// estimate is subtracted from each frame. Pitch is then found with YIN on the autocorrelation of what's
+// left, and the level meter and gate use the cleaned level too.
+const NOISE_OVER = 3;
+const sr_ = new Float64Array(FFT_N), si_ = new Float64Array(FFT_N);
+const HB = FFT_N / 2 + 1;
+const psd = new Float64Array(HB), smPsd = new Float64Array(HB), noisePsd = new Float64Array(HB), cleanPsd = new Float64Array(HB);
+let noiseInit = false, sumW2 = 0;
+for (let i = 0; i < WIN_N; i++) sumW2 += hann[i] * hann[i];
+const wAc = (() => {           // autocorrelation of the window itself, to undo its taper
+  for (let i = 0; i < FFT_N; i++) { sr_[i] = i < WIN_N ? hann[i] : 0; si_[i] = 0; }
+  fft(sr_, si_);
+  for (let k = 0; k < FFT_N; k++) { sr_[k] = sr_[k] * sr_[k] + si_[k] * si_[k]; si_[k] = 0; }
+  fft(sr_, si_);
+  return Float64Array.from(sr_.subarray(0, 2048));
+})();
+function frameSpectrum(buf) {
+  const off = buf.length - WIN_N;
+  for (let i = 0; i < FFT_N; i++) { sr_[i] = i < WIN_N ? buf[off + i] * hann[i] : 0; si_[i] = 0; }
+  fft(sr_, si_);
+  for (let k = 0; k < HB; k++) { psd[k] = sr_[k] * sr_[k] + si_[k] * si_[k]; smPsd[k] = noiseInit ? smPsd[k] * 0.7 + psd[k] * 0.3 : psd[k]; }
+}
+function updateNoise(allowRise) {
+  if (!noiseInit) { if (smPsd[10] > 0) { noisePsd.set(smPsd); noiseInit = true; } return; }
+  for (let k = 0; k < HB; k++) {
+    if (smPsd[k] < noisePsd[k]) noisePsd[k] += (smPsd[k] - noisePsd[k]) * 0.08;
+    else if (allowRise) noisePsd[k] += (smPsd[k] - noisePsd[k]) * 0.03;   // about half a second to catch up
+  }
+}
+function resetNoise() { noiseInit = false; }
+// Mean square of the frame after the background is taken out.
+function cleanLevel() {
+  let e = 0;
+  for (let k = 0; k < HB; k++) {
+    const c = Math.max(0, psd[k] - NOISE_OVER * noisePsd[k]);
+    cleanPsd[k] = c; e += (k === 0 || k === HB - 1) ? c : 2 * c;
+  }
+  return e / (FFT_N * sumW2);
+}
+function detectPitchClean(sr) {
+  for (let k = 0; k < HB; k++) { sr_[k] = cleanPsd[k]; si_[k] = 0; if (k > 0 && k < HB - 1) { sr_[FFT_N - k] = cleanPsd[k]; si_[FFT_N - k] = 0; } }
+  fft(sr_, si_);                // symmetric real input, so this is the autocorrelation
+  const tauMin = Math.max(2, Math.floor(sr / 1200)), tauMax = Math.min(Math.floor(sr / 60), 2000);
+  const r0 = sr_[0] / wAc[0];
+  if (!(r0 > 0)) return null;
+  let run = 0; ydp[0] = 1;
+  for (let tau = 1; tau <= tauMax; tau++) {
+    const d = Math.max(0, 2 * (r0 - sr_[tau] / wAc[tau]));
+    run += d; ydp[tau] = run > 0 ? d * tau / run : 1;
+  }
+  return pickTau(tauMin, tauMax, sr);
+}
 function harmonicProfile(buf, sr, f0) {
   const off = buf.length - WIN_N;
   for (let i = 0; i < FFT_N; i++) { fre[i] = i < WIN_N ? buf[off + i] * hann[i] : 0; fim[i] = 0; }
@@ -426,7 +486,7 @@ function pluck(sr, midi, dur) {
   for (let i = 0; i < n0; i++) { lp += 0.55 * ((Math.random() * 2 - 1) - lp); ex[i] = lp; }
   const d = Math.max(1, Math.round(P / 6));
   for (let i = 0; i < n0; i++) y[i] = ex[i] - (i >= d ? ex[i - d] : 0) * 0.8;
-  const T60 = 4.5, g = Math.pow(0.001, 1 / (f * T60));
+  const T60 = 2.2, g = Math.pow(0.001, 1 / (f * T60));
   for (let n = n0; n < len; n++) {
     const t = n - P, i = Math.floor(t), fr = t - i;
     const a = y[i] * (1 - fr) + y[i + 1] * fr;
@@ -589,7 +649,12 @@ async function startAudio() {
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     });
     micStream = stream;
-    stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => { running = false; }));
+    // If the mic is cut while the app is open (a call, another app taking it), try to reconnect,
+    // and say so if that fails, instead of silently going deaf.
+    stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => {
+      running = false;
+      if (document.visibilityState === 'visible') setTimeout(() => { if (!running) startAudio(); }, 500);
+    }));
     const src = ctx.createMediaStreamSource(stream);
     // Pitch and loudness use a band-passed copy (55 Hz to ~1.8 kHz). That covers every guitar
     // fundamental but drops most of the phone mic's hiss, so quiet notes stand out from the noise.
@@ -631,13 +696,16 @@ document.addEventListener('visibilitychange', () => {
 
 const RUN_GAP = 0.8;   // seconds between notes in a run
 const PASS_GAP = 1.5;  // seconds between the two passes when "Play twice" is on
-let playing = [];
+let playing = [], outLp = null;
 function playNotes(midis, twice) {
   if (!ctx || !midis.length) return;
   playing.forEach(p => { try { p.stop(); } catch (e) { /* already stopped */ } });
   playing = [];
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; lp.Q.value = 0.5;
-  lp.connect(ctx.destination);
+  if (!outLp) {                       // one shared output filter, not a new one per playback
+    outLp = ctx.createBiquadFilter(); outLp.type = 'lowpass'; outLp.frequency.value = 5200; outLp.Q.value = 0.5;
+    outLp.connect(ctx.destination);
+  }
+  const lp = outLp;
   const seq = [];
   let at0 = ctx.currentTime + 0.05;
   for (let pass = 0; pass < (twice ? 2 : 1); pass++) {
@@ -681,9 +749,11 @@ const lvlPct = v => Math.max(0, Math.min(100, (20 * Math.log10(v + 1e-9) + 90) /
 let lvlT = 0;
 function showLevel(rms, gate) {
   const now = performance.now(); if (now - lvlT < 50) return; lvlT = now;
-  el.lvlBar.style.width = lvlPct(rms) + '%';
+  // The gold line stays at 60%. The bar shows how far the sound is above or below what counts,
+  // so turning sensitivity up makes the same sound fill more of the bar.
+  const db = 20 * Math.log10((rms + 1e-9) / gate);
+  el.lvlBar.style.width = Math.max(0, Math.min(100, 60 + db * 1.6)) + '%';
   el.lvlBar.classList.toggle('on', rms >= gate);
-  el.lvlGate.style.left = lvlPct(gate) + '%';
 }
 
 function newTracker(m, now) { return { m, t0: now, frames: 0, cents: [], feat: new Array(HARM).fill(0), featCnt: new Array(HARM).fill(0), featN: 0, done: false }; }
@@ -693,15 +763,17 @@ function loop() {
   requestAnimationFrame(loop);
   analyser.getFloatTimeDomainData(timeBuf);
   const now = performance.now(), sr = ctx.sampleRate;
-  let rms = 0;
-  for (let i = timeBuf.length - 2048; i < timeBuf.length; i++) rms += timeBuf[i] * timeBuf[i];
-  rms = Math.sqrt(rms / 2048);
+  frameSpectrum(timeBuf);
+  if (now >= ignoreUntil) updateNoise(!tr);   // don't learn the app's own note or a note you're playing
+  const rms = Math.sqrt(cleanLevel());
 
   // Room-noise estimate: drops quickly, rises while no pitch is heard, and holds still while a note
   // is sounding, so a quiet note that rings for a while isn't mistaken for background noise.
   const g = gateParams();
-  if (noise === 0 && rms > 0) noise = Math.min(rms, g.floor / g.k);   // start low; it rises to the room level within a second or two
-  else if (rms < noise) noise += (rms - noise) * 0.1;
+  // Start at the floor and never sink far below it: a near-silent first frame (common while the mic
+  // starts up) used to pin this near zero, where a 1%-per-frame rise could never recover.
+  if (noise === 0) noise = g.floor / g.k;
+  else if (rms < noise) noise = Math.max(g.floor / (g.k * 4), noise + (rms - noise) * 0.1);
   const gate = Math.max(g.floor, noise * g.k);
   const unvoiced = () => { if (rms > noise) noise = Math.min(rms, noise * 1.01); };
   showLevel(rms, gate);
@@ -711,12 +783,14 @@ function loop() {
 
   if (now < ignoreUntil) { tr = null; setLive(null, 0, 'playing note…'); return; }
   if (onset) needOnset = false;
+  if (tunerOpen) tunerFeed(null, now);
   if (rms < gate) {
     unvoiced();
     if (now - lastVoiced > 120) { tr = null; needOnset = false; }
     setLive(null, 0, 'listening'); return;
   }
-  const p = detectPitch(timeBuf, sr);
+  const p = detectPitchClean(sr);
+  if (tunerOpen && p && p.f >= 60 && p.f <= 1400) tunerFeed(p, now);
   if (!p || p.f < 60 || p.f > 1400) { unvoiced(); if (now - lastVoiced > 150) tr = null; setLive(null, 0, 'listening'); return; }
   lastVoiced = now;
   const mf = 69 + 12 * Math.log2(p.f / 440), m = Math.round(mf), cents = (mf - m) * 100;
@@ -744,7 +818,6 @@ function loop() {
 }
 
 function setLive(m, cents, idle) {
-  if (tunerOpen) tunerShow(m, cents);
   if (m == null) {
     el.liveNote.classList.add('dim');
     if (el.liveCents.textContent !== idle) el.liveCents.textContent = idle;
@@ -890,6 +963,12 @@ function judge(m, g) {
   const t = cur(), multi = round.notes.length > 1;
   el.override.hidden = true; round.undo = null;   // "count it" only applies to the latest note
   const pre = multi ? 'Note ' + (round.idx + 1) + ': ' : '';
+  // In Intervals it's natural to play the reference note first to get your bearings. Don't count it as a miss.
+  if (round.ref && m === round.ref.midi && m !== t.midi) {
+    lastRight = null;
+    setFeedback('That’s the reference note, ' + noteName(m) + '. Now find the second note.', '');
+    return;
+  }
   if (m !== t.midi) {
     lastRight = false;
     round.attempts++; t.missed = true; breakStreak(); renderStats();
@@ -932,7 +1011,7 @@ function noteCorrect(note) {
   round.solved = true;
   recordRound(round.attempts === 0 && !round.revealed);
   renderStats();
-  const iv = round.ref ? ', ' + ivText(t.midi - round.ref.midi) + ' from ' + noteName(round.ref.midi) + ',' : '';
+  const iv = round.ref ? ', ' + ivText(t.midi - round.ref.midi) + ' from ' + noteName(round.ref.midi) : '';
   setFeedback('✓ ' + (multi ? 'All ' + round.notes.length + ' notes' : noteName(t.midi) + iv + where) + tail, 'ok');
   renderTarget(); drawMarks();
   nextTimer = setTimeout(() => newRound(true), multi ? 2000 : 1600);
@@ -1167,25 +1246,43 @@ el.calBtn.addEventListener('click', openCal);
 
 // ---------- tuner ----------
 // Uses the same listening loop. Cents are smoothed so the needle settles instead of jittering.
-let tunerOpen = false, tunM = null, tunC = 0, tunIdle = 0;
+let tunerOpen = false, tunHist = [], tunLast = 0;
 const tunSheet = $('tunSheet'), tunNote = $('tunNote'), tunHz = $('tunHz'), tunNeedle = $('tunNeedle'), tunMsg = $('tunMsg'), tunStrings = $('tunStrings');
 tunStrings.innerHTML = SNAME.map((n, s) => '<button type="button" data-s="' + s + '" aria-label="Play ' + SLONG[s] + ' string, ' + noteName(OPEN[s]) + '">' + n + '</button>').join('');
-function tunerShow(m, cents) {
-  if (m == null) {
-    // keep the last reading briefly so the display doesn't flicker between plucks
-    if (++tunIdle > 20) { tunNote.classList.add('dim'); tunNote.classList.remove('in'); tunNeedle.classList.remove('in'); tunMsg.textContent = ''; tunMsg.className = 'tunMsg'; tunHz.textContent = 'Play a string'; }
+// Each frame's reading wobbles when there's background noise, so the tuner shows the median of the
+// confident readings from the last 0.9 s that agree on the note. It holds the last reading for a
+// second between plucks.
+function tunerFeed(p, now) {
+  if (p && p.clarity >= 0.7) tunHist.push({ mf: 69 + 12 * Math.log2(p.f / 440), t: now });
+  tunHist = tunHist.filter(x => now - x.t < 900);
+  if (tunHist.length < 4) {
+    if (now - tunLast > 1000) tunerShow(null);
     return;
   }
-  tunIdle = 0;
-  if (m !== tunM) { tunM = m; tunC = cents; } else tunC = tunC * 0.75 + cents * 0.25;
-  const c = Math.round(tunC), inTune = Math.abs(tunC) <= 5;
-  const hz = 440 * Math.pow(2, (m + tunC / 100 - 69) / 12);
+  const count = new Map();
+  tunHist.forEach(x => { const m = Math.round(x.mf); count.set(m, (count.get(m) || 0) + 1); });
+  let m = null, best = 0;
+  count.forEach((c, k) => { if (c > best) { best = c; m = k; } });
+  if (best < 3) { if (now - tunLast > 1000) tunerShow(null); return; }
+  const cs = tunHist.filter(x => Math.round(x.mf) === m).map(x => (x.mf - m) * 100).sort((a, b) => a - b);
+  tunLast = now;
+  tunerShow(m, cs[cs.length >> 1]);
+}
+function tunerShow(m, cents) {
+  if (m == null) {
+    tunNote.classList.add('dim'); tunNote.classList.remove('in'); tunNeedle.classList.remove('in');
+    tunMsg.textContent = ''; tunMsg.className = 'tunMsg'; tunHz.textContent = 'Play a string';
+    tunStrings.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    return;
+  }
+  const c = Math.round(cents), inTune = Math.abs(cents) <= 5;
+  const hz = 440 * Math.pow(2, (m + cents / 100 - 69) / 12);
   tunNote.textContent = noteName(m);
   tunNote.classList.remove('dim'); tunNote.classList.toggle('in', inTune);
   tunHz.textContent = hz.toFixed(1) + ' Hz  ' + (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c) + '¢';
-  tunNeedle.style.left = (50 + Math.max(-50, Math.min(50, tunC))) + '%';
+  tunNeedle.style.left = (50 + Math.max(-50, Math.min(50, cents))) + '%';
   tunNeedle.classList.toggle('in', inTune);
-  tunMsg.textContent = inTune ? 'In tune' : tunC < 0 ? 'Flat, tune up' : 'Sharp, tune down';
+  tunMsg.textContent = inTune ? 'In tune' : cents < 0 ? 'Flat, tune up' : 'Sharp, tune down';
   tunMsg.className = 'tunMsg ' + (inTune ? 'ok' : 'bad');
   const s = OPEN.indexOf(m);
   tunStrings.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === s)));
@@ -1193,7 +1290,7 @@ function tunerShow(m, cents) {
 async function openTuner() {
   if (!(await startAudio())) return;
   clearTimeout(nextTimer);
-  tunerOpen = true; tunM = null; tunIdle = 99; tunerShow(null);
+  tunerOpen = true; tunHist = []; tunLast = 0; tunerShow(null);
   tunSheet.hidden = false; $('tunDone').focus();
 }
 function closeTuner() {
