@@ -172,6 +172,39 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
 .tunMsg{font-weight:600;min-height:1.5em}
 .tunMsg.ok{color:var(--ok)} .tunMsg.bad{color:var(--bad)}
 .err{background:color-mix(in srgb,var(--bad) 16%,var(--panel));border:1px solid var(--bad);border-radius:12px;padding:12px 14px;font-size:14px}
+.seg.five{grid-template-columns:repeat(5,1fr)}
+.seg.five button{font-size:13px;padding:0 2px;min-height:38px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.bar label{display:flex;align-items:center;gap:8px;min-width:0}
+.bar select{max-width:210px;min-width:0}
+.optBtn{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--ink);min-height:34px}
+.optBtn[aria-expanded="true"]{border-color:var(--brass);color:var(--brass)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:12px}
+.panel .seg,.panel .chips button,.panel select{background:var(--bg)}
+.unlock{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);margin-top:-6px}
+.ubar{height:4px;border-radius:2px;background:var(--panel);overflow:hidden}
+.ubar i{display:block;height:100%;width:0;background:var(--brass)}
+.speed{height:4px;border-radius:2px;background:var(--raise);overflow:hidden}
+.speed i{display:block;height:100%;width:0;background:var(--brass)}
+.speed i.over{background:var(--bad)}
+.songBar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--muted)}
+.songBar>select{flex:1 1 150px;min-width:0}
+.songBar .seg{flex:1 1 200px;background:var(--bg)}
+.songBar .seg button{min-height:34px;font-size:13px}
+.songBar label{display:flex;align-items:center;gap:8px}
+.target.xlong{font-size:24px}
+.target.lyr{font:600 22px/1.35 var(--body);letter-spacing:0;gap:4px 10px;min-height:60px}
+.target.lyr .tn{color:var(--muted);padding-bottom:6px}
+.target.lyr .tn.cur{color:var(--ink)}
+.target.lyr .tn.done,.target.lyr .tn.hit{color:var(--ok)}
+.target.lyr .tn.miss{color:var(--bad)}
+.target.lyr small{font:600 12px var(--mono);color:var(--brass)}
+.hum{display:block;width:100%;max-width:360px;height:auto}
+.hb{fill:var(--line)} .hb-cur{fill:var(--brass)} .hb-ok{fill:var(--ok)}
+.recDot{display:flex;align-items:center;gap:10px;font:600 20px var(--body);color:var(--bad)}
+.recDot::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--bad);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--raise);border:1px solid var(--brass);border-radius:12px;padding:10px 16px;font-weight:600;z-index:30;width:max-content;max-width:calc(100% - 32px);text-align:center;box-shadow:0 6px 24px rgb(0 0 0 / .45)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -180,43 +213,70 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
   <header class="top">
     <h1>Fret <span>Finder</span></h1>
     <button type="button" class="stats" id="progBtn" aria-label="Open progress">
-      <span><b id="stStreak">0</b> streak</span>
-      <span><b id="stFirst">0/0</b> today</span>
+      <span>🔥 <b id="stDays">0</b> days</span>
+      <span id="stMin"><b>0/5</b> min today</span>
       <span class="more">Progress ›</span>
     </button>
   </header>
 
-  <div class="seg two" id="gameSeg" role="group" aria-label="Game">
-    <button type="button" data-game="notes">Play it back</button>
+  <div class="seg five" id="gameSeg" role="group" aria-label="Practice mode">
+    <button type="button" data-game="notes">Notes</button>
+    <button type="button" data-game="echo">Echo</button>
+    <button type="button" data-game="songs">Songs</button>
+    <button type="button" data-game="hum">Hum</button>
     <button type="button" data-game="interval">Intervals</button>
   </div>
-  <div class="seg" id="modeSeg" role="group" aria-label="Which string">
-    <button type="button" data-mode="any">Any string</button>
-    <button type="button" data-mode="pick">One string</button>
-    <button type="button" data-mode="random">Random string</button>
+
+  <div class="bar">
+    <label for="zoneSel">Neck <select id="zoneSel"></select></label>
+    <button type="button" class="optBtn" id="optBtn" aria-expanded="false" aria-controls="optPanel">Options</button>
   </div>
-  <div class="chips" id="stringChips" role="group" aria-label="String to play on" hidden></div>
-  <div class="row">
-    <span class="rangeCtl">Frets
-      <select id="fretMin" aria-label="Lowest fret"></select>
-      to
-      <select id="fretMax" aria-label="Highest fret"></select>
-    </span>
-    <label for="runLen" id="runLenLbl">Notes per round <select id="runLen">
-      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-      <option value="4">4</option><option value="5">5</option>
-    </select></label>
-  </div>
-  <div class="opts">
-    <label for="showName"><input type="checkbox" id="showName"> Show note names</label>
-    <label for="natural"><input type="checkbox" id="natural"> Natural notes only</label>
-    <label for="focus"><input type="checkbox" id="focus"> Focus on weak spots</label>
-    <label for="twice"><input type="checkbox" id="twice"> Play twice</label>
+  <div class="unlock" id="unlockRow" hidden><span id="unlockTxt"></span><span class="ubar"><i id="unlockBar"></i></span></div>
+
+  <div class="panel" id="optPanel" hidden>
+    <div class="seg" id="modeSeg" role="group" aria-label="Which string">
+      <button type="button" data-mode="any">Any string</button>
+      <button type="button" data-mode="pick">One string</button>
+      <button type="button" data-mode="random">Random string</button>
+    </div>
+    <div class="chips" id="stringChips" role="group" aria-label="String to play on" hidden></div>
+    <div class="row" id="rangeRow">
+      <span class="rangeCtl" id="customRange">Frets
+        <select id="fretMin" aria-label="Lowest fret"></select>
+        to
+        <select id="fretMax" aria-label="Highest fret"></select>
+      </span>
+      <label for="runLen" id="runLenLbl">Notes per round <select id="runLen">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        <option value="4">4</option><option value="5">5</option>
+      </select></label>
+    </div>
+    <div class="opts">
+      <label for="showName" id="lblShow"><input type="checkbox" id="showName"> Show note names</label>
+      <label for="speedGoal" id="lblSpeed"><input type="checkbox" id="speedGoal"> Speed goal</label>
+      <label for="twice" id="lblTwice"><input type="checkbox" id="twice"> Play twice</label>
+      <label for="focus" id="lblFocus"><input type="checkbox" id="focus"> Focus on weak spots</label>
+      <label for="natural" id="lblNatural"><input type="checkbox" id="natural"> Natural notes only</label>
+    </div>
+    <div class="micRow">
+      <label for="sens">Mic sensitivity</label>
+      <input type="range" id="sens" min="1" max="10" step="1" aria-describedby="sensHelp">
+      <span></span><span id="sensHelp" style="font-size:12px">Notes count when the mic level bar turns green and passes the gold line. Turn it up if your notes don't get there. Turn it down if the room alone gets there.</span>
+    </div>
   </div>
 
   <section class="stage" aria-label="Practice">
+    <div class="songBar" id="songBar" hidden>
+      <select id="songSel" aria-label="Song"></select>
+      <div class="seg two" id="timedSeg" role="group" aria-label="How the song plays">
+        <button type="button" data-timed="0">Wait for me</button>
+        <button type="button" data-timed="1">In time</button>
+      </div>
+      <label for="tempo" id="tempoLbl">Speed <select id="tempo"></select></label>
+    </div>
     <div class="ask" id="ask">Tap Start. You'll hear a note, then play it back on your guitar.</div>
     <div class="target" id="target"><span class="tn hid">?</span></div>
+    <div class="speed" id="speedBar" hidden title="Your speed goal: beat the bar"><i id="speedFill"></i></div>
     <div class="btns">
       <button type="button" class="btn primary" id="startBtn">Start</button>
       <button type="button" class="btn" id="playBtn" hidden>Play again</button>
@@ -238,9 +298,6 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
     <div class="micRow">
       <span>Mic level</span>
       <span class="lvl" title="Notes count once the bar passes the gold line"><i id="lvlBar"></i><b id="lvlGate"></b></span>
-      <label for="sens">Sensitivity</label>
-      <input type="range" id="sens" min="1" max="10" step="1" aria-describedby="sensHelp">
-      <span></span><span id="sensHelp" style="font-size:12px">Notes count when the bar turns green and passes the gold line. Turn it up if your notes don't get there. Turn it down if the room alone gets there.</span>
     </div>
   </section>
 
@@ -263,6 +320,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
     </div>
   </section>
 </main>
+<div class="toast" id="toast" role="status" hidden></div>
 
 <div class="sheet" id="calSheet" hidden role="dialog" aria-modal="true" aria-labelledby="calTitle">
   <div class="sheetIn">
@@ -325,6 +383,79 @@ const PHYS_MAX = 19;          // highest fret considered when guessing a string
 const PLUCK_DUR = 0.8;        // seconds; short, so the phone is quiet again quickly and the mic can hear you
 const noteName = m => NN[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const fretWord = f => f === 0 ? 'open' : f + (f === 1 ? 'st' : f === 2 ? 'nd' : f === 3 ? 'rd' : 'th') + ' fret';
+// Neck areas ("home base" first). The next one opens after 15 first-try rounds out of your last 20 in the current one.
+const ZONES = [[0, 5], [3, 8], [5, 10], [7, 12], [0, 12]];
+const zoneLabel = z => z === 0 ? 'Home base (open–5)' : z === ZONES.length - 1 ? 'Whole neck (open–12)' : 'Frets ' + ZONES[z][0] + '–' + ZONES[z][1];
+const UNLOCK_N = 20, UNLOCK_NEED = 15;
+const DAY_GOAL = 300;          // seconds of practice a day that keep the daily streak going
+const TEMPOS = [[50, 'Very slow'], [60, 'Slow'], [72, 'Medium'], [88, 'Quick'], [104, 'Fast']];
+const GAMES = ['notes', 'echo', 'songs', 'hum', 'interval'];
+
+// Songs everyone knows (all public domain). Each line: note steps from the song's home note, ":beats" when a note
+// isn't one beat long, and the words, one syllable per note (hyphens split syllables).
+const SONG_SRC = [
+  { id: 'twinkle', name: 'Twinkle Twinkle', lines: [
+    ['0 0 7 7 9 9 7:2', 'Twin-kle twin-kle lit-tle star,'],
+    ['5 5 4 4 2 2 0:2', 'How I won-der what you are.'],
+    ['7 7 5 5 4 4 2:2', 'Up a-bove the world so high,'],
+    ['7 7 5 5 4 4 2:2', 'Like a dia-mond in the sky.'],
+    ['0 0 7 7 9 9 7:2', 'Twin-kle twin-kle lit-tle star,'],
+    ['5 5 4 4 2 2 0:2', 'How I won-der what you are.']] },
+  { id: 'mary', name: 'Mary Had a Little Lamb', lines: [
+    ['4:1.5 2:.5 0 2 4 4 4:2', 'Ma-ry had a lit-tle lamb,'],
+    ['2 2 2:2', 'lit-tle lamb,'],
+    ['4 7 7:2', 'lit-tle lamb,'],
+    ['4:1.5 2:.5 0 2 4 4 4 4', 'Ma-ry had a lit-tle lamb, its'],
+    ['2 2 4 2 0:4', 'fleece was white as snow.']] },
+  { id: 'birthday', name: 'Happy Birthday', lines: [
+    ['-5:.75 -5:.25 -3 -5 0 -1:2', 'Hap-py birth-day to you,'],
+    ['-5:.75 -5:.25 -3 -5 2 0:2', 'Hap-py birth-day to you,'],
+    ['-5:.75 -5:.25 7 4 0 -1 -3:2', 'Hap-py birth-day dear some-one,'],
+    ['5:.75 5:.25 4 0 2 0:2', 'Hap-py birth-day to you.']] },
+  { id: 'row', name: 'Row, Row, Row Your Boat', lines: [
+    ['0 0 0:.67 2:.33 4', 'Row, row, row your boat,'],
+    ['4:.67 2:.33 4:.67 5:.33 7:2', 'gent-ly down the stream.'],
+    ['12:.33 12:.33 12:.33 7:.33 7:.33 7:.33 4:.33 4:.33 4:.33 0:.33 0:.33 0:.33', 'Mer-ri-ly mer-ri-ly mer-ri-ly mer-ri-ly,'],
+    ['7:.67 5:.33 4:.67 2:.33 0:2', 'life is but a dream.']] },
+  { id: 'ode', name: 'Ode to Joy', lines: [
+    ['4 4 5 7 7 5 4 2 0 0 2 4 4:1.5 2:.5 2:2'],
+    ['4 4 5 7 7 5 4 2 0 0 2 4 2:1.5 0:.5 0:2']] },
+  { id: 'jingle', name: 'Jingle Bells', lines: [
+    ['4 4 4:2 4 4 4:2 4 7 0:1.5 2:.5 4:4', 'Jin-gle bells, jin-gle bells, jin-gle all the way.'],
+    ['5 5 5:1.5 5:.5 5 4 4 4:.5 4:.5 4 2 2 4 2:2 7:2', 'Oh what fun it is to ride in a one-horse o-pen sleigh, hey!'],
+    ['4 4 4:2 4 4 4:2 4 7 0:1.5 2:.5 4:4', 'Jin-gle bells, jin-gle bells, jin-gle all the way.'],
+    ['5 5 5:1.5 5:.5 5 4 4 4:.5 4:.5 7 7 5 2 0:4', 'Oh what fun it is to ride in a one-horse o-pen sleigh.']] },
+  { id: 'frere', name: 'Are You Sleeping', lines: [
+    ['0 2 4 0 0 2 4 0', 'Are you sleep-ing, are you sleep-ing,'],
+    ['4 5 7:2 4 5 7:2', 'Bro-ther John, Bro-ther John?'],
+    ['7:.5 9:.5 7:.5 5:.5 4 0 7:.5 9:.5 7:.5 5:.5 4 0', 'Morn-ing bells are ring-ing, morn-ing bells are ring-ing,'],
+    ['0 -5 0:2 0 -5 0:2', 'ding, dang, dong. Ding, dang, dong.']] },
+  { id: 'london', name: 'London Bridge', lines: [
+    ['7:1.5 9:.5 7 5 4 5 7:2', 'Lon-don Bridge is fall-ing down,'],
+    ['2 4 5:2 4 5 7:2', 'fall-ing down, fall-ing down,'],
+    ['7:1.5 9:.5 7 5 4 5 7:2', 'Lon-don Bridge is fall-ing down,'],
+    ['2:2 7:2 4 0:3', 'my fair la-dy.']] },
+  { id: 'macdonald', name: 'Old MacDonald', lines: [
+    ['0 0 0 -5 -3 -3 -5:2', 'Old Mac-Don-ald had a farm,'],
+    ['4 4 2 2 0:3', 'E-I-E-I-O.'],
+    ['-5 0 0 0 -5 -3 -3 -5:2', 'And on that farm he had a cow,'],
+    ['4 4 2 2 0:3', 'E-I-E-I-O.']] }
+];
+function parseSong(src) {
+  const notes = [];
+  let beat = 0;
+  src.lines.forEach(([n, w], li) => {
+    const syl = [];
+    if (w) w.trim().split(/\s+/).forEach(word => { const parts = word.split('-'); parts.forEach((p, i) => syl.push(p + (i < parts.length - 1 ? '-' : ''))); });
+    n.trim().split(/\s+/).forEach((tok, i) => {
+      const [o, b] = tok.split(':'), beats = b ? +b : 1;
+      notes.push({ off: +o, beats, at: beat, syl: syl[i] || '♪', line: li });
+      beat += beats;
+    });
+  });
+  return { id: src.id, name: src.name, notes };
+}
+const SONGS = SONG_SRC.map(parseSong);
 
 // DSP-START
 function makeFFT(N) {
@@ -441,10 +572,10 @@ function cleanLevel() {
   }
   return e / (FFT_N * sumW2);
 }
-function detectPitchClean(sr) {
+function detectPitchClean(sr, fmax = 1200) {
   for (let k = 0; k < HB; k++) { sr_[k] = cleanPsd[k]; si_[k] = 0; if (k > 0 && k < HB - 1) { sr_[FFT_N - k] = cleanPsd[k]; si_[FFT_N - k] = 0; } }
   fft(sr_, si_);                // symmetric real input, so this is the autocorrelation
-  const tauMin = Math.max(2, Math.floor(sr / 1200)), tauMax = Math.min(Math.floor(sr / 60), 2000);
+  const tauMin = Math.max(2, Math.floor(sr / fmax)), tauMax = Math.min(Math.floor(sr / 60), 2000);
   const r0 = sr_[0] / wAc[0];
   if (!(r0 > 0)) return null;
   let run = 0; ydp[0] = 1;
@@ -513,15 +644,18 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(PREFIX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(PREFIX + k, JSON.stringify(v)); } catch (e) { /* storage off */ } }
 };
-const settings = Object.assign({ game: 'notes', mode: 'any', string: 2, fretMin: 0, fretMax: 5, runLen: 1, showName: false, natural: false, focus: false, twice: false, sens: 7 }, store.get('settings', {}));
+const savedSettings = store.get('settings', {}) || {};
+const settings = Object.assign({ game: 'notes', mode: 'any', string: 2, fretMin: 0, fretMax: 5, runLen: 1, showName: false, natural: false, focus: false, twice: false, sens: 7, songId: 'twinkle', timed: false, tempo: 60, speedGoal: false }, savedSettings);
 const okInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 if (!['any', 'pick', 'random'].includes(settings.mode)) settings.mode = 'any';
-if (!['notes', 'interval'].includes(settings.game)) settings.game = 'notes';
+if (!GAMES.includes(settings.game)) settings.game = 'notes';
 if (!okInt(settings.string, 0, 5)) settings.string = 2;
 if (!okInt(settings.fretMax, 0, 15)) settings.fretMax = 5;
 if (!okInt(settings.fretMin, 0, settings.fretMax)) settings.fretMin = 0;
 if (!okInt(settings.runLen, 1, 5)) settings.runLen = 1;
 if (!okInt(settings.sens, 1, 10)) settings.sens = 7;
+if (!SONG_SRC.some(s => s.id === settings.songId)) settings.songId = 'twinkle';
+if (!TEMPOS.some(t => t[0] === settings.tempo)) settings.tempo = 60;
 const saveSettings = () => store.set('settings', settings);
 let calib = store.get('calib', null);
 if (!Array.isArray(calib) || calib.length !== 6) calib = OPEN.map(() => CAL_FRETS.map(() => null));
@@ -531,10 +665,21 @@ let featSd = null;
 
 // ---------- saved progress ----------
 const dayKey = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-const freshProgress = () => ({ rounds: 0, firstTry: 0, streak: 0, best: 0, notes: {}, days: {} });
+const freshProgress = () => ({ rounds: 0, firstTry: 0, streak: 0, best: 0, notes: {}, days: {}, secs: {}, bestDays: 0, unlocked: 0, zoneHist: {}, speed: {}, goal: {}, goalRun: {}, goalSlow: {}, echoLen: 2, songs: {} });
 let progress = store.get('progress', null);
 if (!progress || typeof progress !== 'object' || typeof progress.notes !== 'object' || typeof progress.days !== 'object') progress = freshProgress();
+progress = Object.assign(freshProgress(), progress);
+['secs', 'zoneHist', 'speed', 'goal', 'goalRun', 'goalSlow', 'songs'].forEach(k => { if (!progress[k] || typeof progress[k] !== 'object') progress[k] = {}; });
+if (!okInt(progress.unlocked, 0, ZONES.length - 1)) progress.unlocked = 0;
+if (!okInt(progress.echoLen, 2, 8)) progress.echoLen = 2;
+if (!okInt(progress.bestDays, 0, 1e6)) progress.bestDays = 0;
 const saveProgress = () => store.set('progress', progress);
+
+// Neck area. Someone who already had their own fret range keeps it as "Custom".
+if (!('zone' in savedSettings)) settings.zone = (Object.keys(savedSettings).length && !(settings.fretMin === 0 && settings.fretMax === 5)) ? -1 : 0;
+if (!okInt(settings.zone, -1, progress.unlocked)) settings.zone = 0;
+if (settings.zone >= 0) { settings.fretMin = ZONES[settings.zone][0]; settings.fretMax = ZONES[settings.zone][1]; }
+
 function recordRound(first) {
   progress.rounds++;
   if (first) { progress.firstTry++; progress.streak++; progress.best = Math.max(progress.best, progress.streak); } else progress.streak = 0;
@@ -555,6 +700,41 @@ function noteWeight(midi) {
   if (!settings.focus) return 1;
   const r = progress.notes[midi], n = r ? r[0] : 0, miss = r ? r[1] : 0;
   return 0.4 + 3 * (miss + 0.5) / (n + 2);
+}
+// Daily streak: practice time is counted between notes you play (gaps over 15 s count as 15 s).
+// A day counts once it reaches 5 minutes.
+let lastAct = 0, lastActSave = 0;
+function bumpActivity() {
+  const now = performance.now();
+  if (lastAct) {
+    const k = dayKey(), before = progress.secs[k] || 0;
+    progress.secs[k] = before + Math.min(now - lastAct, 15000) / 1000;
+    if (before < DAY_GOAL && progress.secs[k] >= DAY_GOAL) {
+      const d = dayStreak();
+      progress.bestDays = Math.max(progress.bestDays, d);
+      showToast('🔥 Daily goal done. ' + d + (d === 1 ? ' day' : ' days') + ' in a row.');
+      lastActSave = 0;
+    }
+    if (now - lastActSave > 3000) {
+      const keys = Object.keys(progress.secs).sort();
+      while (keys.length > 400) delete progress.secs[keys.shift()];
+      saveProgress(); renderStats(); lastActSave = now;
+    }
+  }
+  lastAct = now;
+}
+function dayStreak() {
+  const d = new Date();
+  let n = 0;
+  if ((progress.secs[dayKey(d)] || 0) < DAY_GOAL) d.setDate(d.getDate() - 1);   // today isn't done yet: count from yesterday
+  while ((progress.secs[dayKey(d)] || 0) >= DAY_GOAL) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+let toastT = 0;
+function showToast(t) {
+  const n = document.getElementById('toast');
+  n.textContent = t; n.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { n.hidden = true; }, 4500);
 }
 
 // ---------- string classification ----------
@@ -617,8 +797,12 @@ function classify(m, feat) {
 // ---------- DOM refs ----------
 const $ = id => document.getElementById(id);
 const el = {
-  gameSeg: $('gameSeg'), natural: $('natural'), focus: $('focus'), twice: $('twice'),
+  gameSeg: $('gameSeg'), natural: $('natural'), focus: $('focus'), twice: $('twice'), speedGoal: $('speedGoal'),
   modeSeg: $('modeSeg'), chips: $('stringChips'), fretMin: $('fretMin'), fretMax: $('fretMax'), runLen: $('runLen'), showName: $('showName'),
+  zoneSel: $('zoneSel'), optBtn: $('optBtn'), optPanel: $('optPanel'), customRange: $('customRange'),
+  unlockRow: $('unlockRow'), unlockTxt: $('unlockTxt'), unlockBar: $('unlockBar'),
+  songBar: $('songBar'), songSel: $('songSel'), timedSeg: $('timedSeg'), tempo: $('tempo'),
+  speedBar: $('speedBar'), speedFill: $('speedFill'),
   ask: $('ask'), target: $('target'), start: $('startBtn'), play: $('playBtn'), reveal: $('revealBtn'), next: $('nextBtn'),
   feedback: $('feedback'), override: $('overrideBtn'), err: $('err'),
   liveNote: $('liveNote'), needle: $('needle'), liveCents: $('liveCents'), liveString: $('liveString'),
@@ -697,40 +881,57 @@ document.addEventListener('visibilitychange', () => {
 const RUN_GAP = 0.8;   // seconds between notes in a run
 const PASS_GAP = 1.5;  // seconds between the two passes when "Play twice" is on
 let playing = [], outLp = null;
-function playNotes(midis, twice) {
-  if (!ctx || !midis.length) return;
+const clickCache = new Map();
+function clickData(accent) {
+  let d = clickCache.get(accent);
+  if (!d) {
+    const n = Math.floor(ctx.sampleRate * 0.04), f = accent ? 1500 : 1000;
+    d = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const t = i / ctx.sampleRate; d[i] = 0.6 * Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.006); }
+    clickCache.set(accent, d);
+  }
+  return d;
+}
+// Plays a list of {midi, at} plucks and {click, at} count-in clicks (at = audio-clock time).
+function schedule(seq) {
+  if (!ctx || !seq.length) return;
   playing.forEach(p => { try { p.stop(); } catch (e) { /* already stopped */ } });
   playing = [];
   if (!outLp) {                       // one shared output filter, not a new one per playback
     outLp = ctx.createBiquadFilter(); outLp.type = 'lowpass'; outLp.frequency.value = 5200; outLp.Q.value = 0.5;
     outLp.connect(ctx.destination);
   }
-  const lp = outLp;
+  seq.forEach((e, i) => {
+    let data;
+    if (e.click) data = clickData(!!e.accent);
+    else { data = pluckCache.get(e.midi); if (!data) { data = pluck(ctx.sampleRate, e.midi, PLUCK_DUR); pluckCache.set(e.midi, data); } }
+    const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
+    buf.getChannelData(0).set(data);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(1, e.at);
+    if (!e.click && i < seq.length - 1) {            // damp each note as the next sound starts
+      const cut = seq[i + 1].at;
+      g.gain.setValueAtTime(1, cut - 0.04);
+      g.gain.linearRampToValueAtTime(0, cut + 0.02);
+    }
+    src.connect(g); g.connect(outLp);
+    src.start(e.at);
+    playing.push(src);
+  });
+  // don't grade the app's own sounds
+  const end = Math.max(...seq.map(e => e.at + (e.click ? 0.12 : PLUCK_DUR + 0.35)));
+  ignoreUntil = performance.now() + (end - ctx.currentTime) * 1000;
+}
+function playNotes(midis, twice) {
+  if (!ctx || !midis.length) return;
   const seq = [];
   let at0 = ctx.currentTime + 0.05;
   for (let pass = 0; pass < (twice ? 2 : 1); pass++) {
     midis.forEach(m => { seq.push({ midi: m, at: at0 }); at0 += RUN_GAP; });
     at0 += PASS_GAP - RUN_GAP;
   }
-  seq.forEach(({ midi, at }, i) => {
-    let data = pluckCache.get(midi);
-    if (!data) { data = pluck(ctx.sampleRate, midi, PLUCK_DUR); pluckCache.set(midi, data); }
-    const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
-    buf.getChannelData(0).set(data);
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(1, at);
-    if (i < seq.length - 1) {            // damp each note as the next one starts
-      const cut = seq[i + 1].at;
-      g.gain.setValueAtTime(1, cut - 0.04);
-      g.gain.linearRampToValueAtTime(0, cut + 0.02);
-    }
-    src.connect(g); g.connect(lp);
-    src.start(at);
-    playing.push(src);
-  });
-  // don't grade the app's own notes
-  ignoreUntil = performance.now() + (seq[seq.length - 1].at - ctx.currentTime + PLUCK_DUR + 0.35) * 1000;
+  schedule(seq);
 }
 
 // ---------- listening loop ----------
@@ -763,8 +964,10 @@ function loop() {
   requestAnimationFrame(loop);
   analyser.getFloatTimeDomainData(timeBuf);
   const now = performance.now(), sr = ctx.sampleRate;
+  tick(now);
   frameSpectrum(timeBuf);
-  if (now >= ignoreUntil) updateNoise(!tr);   // don't learn the app's own note or a note you're playing
+  // don't learn the app's own note, a note you're playing, or your humming as background noise
+  if (now >= ignoreUntil) updateNoise(!tr && !(hum && hum.phase === 'rec'));
   const rms = Math.sqrt(cleanLevel());
 
   // Room-noise estimate: drops quickly, rises while no pitch is heard, and holds still while a note
@@ -784,16 +987,21 @@ function loop() {
   if (now < ignoreUntil) { tr = null; setLive(null, 0, 'playing note…'); return; }
   if (onset) needOnset = false;
   if (tunerOpen) tunerFeed(null, now);
+  // While recording a hum, the raw pitch track is kept and split into notes afterwards. Whistles go higher, so allow up to 2.4 kHz.
+  const humRec = !!(hum && hum.phase === 'rec');
   if (rms < gate) {
     unvoiced();
+    if (humRec) humFrame(null, now, rms);
     if (now - lastVoiced > 120) { tr = null; needOnset = false; }
     setLive(null, 0, 'listening'); return;
   }
-  const p = detectPitchClean(sr);
+  const fmax = humRec ? 2400 : 1200;
+  const p = detectPitchClean(sr, fmax);
   if (tunerOpen && p && p.f >= 60 && p.f <= 1400) tunerFeed(p, now);
-  if (!p || p.f < 60 || p.f > 1400) { unvoiced(); if (now - lastVoiced > 150) tr = null; setLive(null, 0, 'listening'); return; }
+  if (!p || p.f < 60 || p.f > fmax * 1.17) { unvoiced(); if (humRec) humFrame(null, now, rms); if (now - lastVoiced > 150) tr = null; setLive(null, 0, 'listening'); return; }
   lastVoiced = now;
   const mf = 69 + 12 * Math.log2(p.f / 440), m = Math.round(mf), cents = (mf - m) * 100;
+  if (humRec) { humFrame(p.clarity >= 0.7 ? mf : null, now, rms); tr = null; setLive(m, cents); return; }
   if (!tr || tr.m !== m || (onset && tr.done)) tr = newTracker(m, now);
   tr.frames++; tr.cents.push(cents);
   setLive(m, cents);
@@ -813,7 +1021,7 @@ function loop() {
     needOnset = true; lastJudgedM = m;
     const feat = tr.featN >= 2 ? tr.feat.map((v, k) => tr.featCnt[k] ? v / tr.featCnt[k] : null) : null;
     const cs = tr.cents.slice().sort((a, b) => a - b);
-    onNote(m, cs[cs.length >> 1], feat);
+    onNote(m, cs[cs.length >> 1], feat, tr.t0);
   }
 }
 
@@ -833,11 +1041,21 @@ function setLive(m, cents, idle) {
 }
 
 // ---------- practice ----------
-let round = null, nextTimer = 0;
+let round = null, nextTimer = 0, started = false, hum = null, echoFails = 0;
 const IV = ['unison', 'minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th', 'octave'];
 const ivText = d => d === 0 ? 'the same note' : Math.abs(d) > 12 ? Math.abs(d) + ' semitones ' + (d > 0 ? 'up' : 'down') : 'a ' + IV[Math.abs(d)] + (d > 0 ? ' up' : ' down');
 const NATURAL = new Set([0, 2, 4, 5, 7, 9, 11]);
 let lastGuess = null, lastFeat = null, lastM = null, lastRight = null;
+const SPEED_GAMES = ['notes', 'interval', 'echo'];
+const GOAL0 = { notes: 3, interval: 4, echo: 2.5 };     // starting speed goal, seconds per note
+const goalFor = g => progress.goal[g] || GOAL0[g] || 3;
+// Echo and Songs have no "random string" option, and Hum always takes any string.
+function effMode() {
+  const g = settings.game;
+  if (g === 'hum') return 'any';
+  if (settings.mode === 'random' && (g === 'echo' || g === 'songs')) return 'any';
+  return settings.mode;
+}
 
 function rand(n) { return Math.floor(Math.random() * n); }
 function pickWeighted(pool) {
@@ -847,25 +1065,79 @@ function pickWeighted(pool) {
   return pool[pool.length - 1];
 }
 function positionsInRange() {
-  const out = [];
-  const strings = settings.mode === 'pick' ? [settings.string] : [0, 1, 2, 3, 4, 5];
+  const out = [], mode = effMode();
+  const strings = mode === 'pick' ? [settings.string] : [0, 1, 2, 3, 4, 5];
   const seen = new Set();
   for (const s of strings) for (let f = settings.fretMin; f <= settings.fretMax; f++) {
     const midi = OPEN[s] + f;
     // In Any-string mode, count each pitch once so notes that exist on two strings aren't picked twice as often.
-    if (settings.mode === 'any') { if (seen.has(midi)) continue; seen.add(midi); }
+    if (mode === 'any') { if (seen.has(midi)) continue; seen.add(midi); }
     out.push({ s, f, midi });
   }
-  if (settings.natural) {
+  if (settings.natural && (settings.game === 'notes' || settings.game === 'interval')) {
     const nat = out.filter(p => NATURAL.has(p.midi % 12));
     if (nat.length) return nat;           // a range with no natural notes falls back to all notes
   }
   return out;
 }
+// Echo tunes: mostly small steps, drawn from one key so they sound like real tunes, often ending on "home".
+const SCALE = [0, 2, 4, 5, 7, 9, 11];
+function makeEcho(pos) {
+  const len = progress.echoLen;
+  const keys = [...new Set(pos.map(p => p.midi % 12))];
+  const key = keys[rand(keys.length)];
+  const isHome = p => (p.midi - key) % 12 === 0;
+  let pool = pos.filter(p => SCALE.includes((p.midi - key) % 12));
+  if (pool.length < 3) pool = pos;
+  const homes = pool.filter(isHome);
+  let prev = homes.length && Math.random() < 0.5 ? homes[rand(homes.length)] : pool[rand(pool.length)];
+  const out = [prev];
+  for (let i = 1; i < len; i++) {
+    let near = pool.filter(p => p.midi !== prev.midi && Math.abs(p.midi - prev.midi) <= 5);
+    if (!near.length) near = pool.filter(p => p.midi !== prev.midi);
+    if (!near.length) break;
+    let pick = null;
+    if (i === len - 1) { const h = near.filter(isHome); if (h.length && Math.random() < 0.6) pick = h[rand(h.length)]; }
+    if (!pick) {
+      const w = near.map(p => { const d = Math.abs(p.midi - prev.midi); return d <= 2 ? 4 : d <= 4 ? 2 : 1; });
+      let x = Math.random() * w.reduce((a, b) => a + b, 0);
+      pick = near[near.length - 1];
+      for (let j = 0; j < near.length; j++) { x -= w[j]; if (x <= 0) { pick = near[j]; break; } }
+    }
+    out.push(pick); prev = pick;
+  }
+  return out;
+}
+// Songs: pick the key that keeps the most notes inside the current neck area, and always on the neck.
+const songById = id => SONGS.find(s => s.id === id) || SONGS[0];
+function makeSong() {
+  const song = songById(settings.songId), mode = effMode();
+  const offs = song.notes.map(n => n.off), lo = Math.min(...offs), hi = Math.max(...offs);
+  const strs = mode === 'pick' ? [settings.string] : [0, 1, 2, 3, 4, 5];
+  const inZone = m => strs.some(s => m - OPEN[s] >= settings.fretMin && m - OPEN[s] <= settings.fretMax);
+  const onNeck = m => strs.some(s => m - OPEN[s] >= 0 && m - OPEN[s] <= 15);
+  const zp = [];
+  strs.forEach(s => { for (let f = settings.fretMin; f <= settings.fretMax; f++) zp.push(OPEN[s] + f); });
+  const zmid = (Math.min(...zp) + Math.max(...zp)) / 2;
+  let best = null;
+  for (let T = 30; T <= 84; T++) {
+    if (!offs.every(o => onNeck(T + o))) continue;
+    const fit = offs.filter(o => inZone(T + o)).length, centre = Math.abs(T + (lo + hi) / 2 - zmid);
+    if (!best || fit > best.fit || (fit === best.fit && centre < best.centre)) best = { T, fit, centre };
+  }
+  const T = best ? best.T : 52;
+  const notes = song.notes.map(n => {
+    const midi = T + n.off, string = mode === 'pick' ? settings.string : null;
+    return { midi, string, fret: string == null ? null : midi - OPEN[string], syl: n.syl, at: n.at, beats: n.beats, line: n.line, state: null };
+  });
+  return { song, notes, timed: !!settings.timed, ref: null, idx: 0, attempts: 0, solved: false, revealed: false, undo: null, listenAt: 0, peek: null, beat0: 0, outside: best ? offs.length - best.fit : 0 };
+}
 // A round is 1-5 notes. Runs move by a 5th or less between notes so they sound like a phrase.
 function makeRound() {
-  const pos = positionsInRange(), notes = [];
-  const toNote = p => ({ midi: p.midi, string: settings.mode === 'any' ? null : p.s, fret: p.f });
+  if (settings.game === 'songs') return makeSong();
+  const pos = positionsInRange(), notes = [], mode = effMode();
+  const toNote = p => ({ midi: p.midi, string: mode === 'any' ? null : p.s, fret: p.f });
+  const base = () => ({ ref: null, notes: [], idx: 0, attempts: 0, solved: false, revealed: false, undo: null, listenAt: 0 });
   if (settings.game === 'interval') {
     // Interval mode: a shown reference note, then one note to find by ear, up to an octave away.
     const partners = a => pos.filter(b => b.midi !== a.midi && Math.abs(b.midi - a.midi) <= 12);
@@ -873,59 +1145,88 @@ function makeRound() {
     if (round && round.ref) { const fresh = refs.filter(a => a.midi !== round.ref.midi); if (fresh.length) refs = fresh; }
     if (refs.length) {
       const a = refs[rand(refs.length)], b = pickWeighted(partners(a));
-      return { ref: { midi: a.midi, string: a.s, fret: a.f }, notes: [toNote(b)], idx: 0, attempts: 0, solved: false, revealed: false, undo: null };
+      return Object.assign(base(), { ref: { midi: a.midi, string: a.s, fret: a.f }, notes: [toNote(b)] });
     }
   }
-  for (let i = 0; i < settings.runLen; i++) {
+  if (settings.game === 'echo') return Object.assign(base(), { notes: makeEcho(pos).map(toNote) });
+  const runLen = settings.game === 'notes' ? settings.runLen : 1;
+  for (let i = 0; i < runLen; i++) {
     const prev = notes[i - 1];
     let pool = pos;
     if (prev) {
       const near = pos.filter(p => p.midi !== prev.midi && Math.abs(p.midi - prev.midi) <= 7);
       if (near.length) pool = near;
-    } else if (round) {
+    } else if (round && round.notes) {
       const fresh = pos.filter(p => p.midi !== round.notes[0].midi);
       if (fresh.length) pool = fresh;
     }
     notes.push(toNote(pickWeighted(pool)));
   }
-  return { ref: null, notes, idx: 0, attempts: 0, solved: false, revealed: false, undo: null };
+  return Object.assign(base(), { notes });
 }
 const cur = () => round.notes[round.idx];
 function newRound(play = true) {
   clearTimeout(nextTimer);
-  round = makeRound();
   lastGuess = null; lastM = null; lastRight = null;
   setFeedback('');
   el.override.hidden = true;
+  if (settings.game === 'hum') { round = null; hum = freshHum(); }
+  else { hum = null; round = makeRound(); }
   renderTarget(); drawMarks();
-  if (play) playRound();
+  if (play && round && !round.timed) playRound();
 }
 function playRound() {
   if (!round) return;
-  const midis = round.notes.map(n => n.midi);
-  if (round.ref) midis.unshift(round.ref.midi);
-  playNotes(midis, settings.twice);
+  if (round.song) {
+    if (round.timed) { if (round.beat0) round = makeRound(); startTimed(); }
+    else playNotes([cur().midi]);          // the first note to start, or a hint for the note you're on
+  } else {
+    const midis = round.notes.map(n => n.midi);
+    if (round.ref) midis.unshift(round.ref.midi);
+    playNotes(midis, settings.twice);
+  }
+  round.listenAt = ignoreUntil;
+  bumpActivity();
+  renderTarget();
 }
 
+const IDLE_ASK = {
+  notes: 'Tap Start. You’ll hear a note, then play it back on your guitar.',
+  echo: 'Tap Start. You’ll hear a short tune, then play it back. Tunes get longer as you get them right.',
+  songs: 'Pick a song you know, tap Start, and play it from memory.',
+  hum: 'Hum or whistle a few notes of any tune, then play them on your guitar.',
+  interval: 'Tap Start. You’ll hear two notes. Find the second one.'
+};
+const nameHtml = m => noteName(m).replace(/(-?\d+)$/, '<small>$1</small>');
 function renderTarget() {
+  renderButtons();
+  if (!started) {
+    el.ask.textContent = IDLE_ASK[settings.game];
+    el.target.className = 'target'; el.target.innerHTML = '<span class="tn hid">?</span>';
+    return;
+  }
+  if (settings.game === 'hum') { renderHum(); return; }
   if (!round) return;
-  const n = round.notes.length, multi = n > 1;
+  if (round.song) { renderSong(); return; }
+  const n = round.notes.length, multi = n > 1, mode = effMode();
   const strs = round.notes.map(x => x.string);
+  const onStr = s => ' on the <strong>' + SLONG[s] + ' string</strong>';
   let ask;
   if (round.ref) {
     const rf = round.ref, t = round.notes[0];
-    const where = settings.mode === 'any' ? 'on any string' : 'on the <strong>' + SLONG[t.string] + ' string</strong>';
+    const where = mode === 'any' ? 'on any string' : 'on the <strong>' + SLONG[t.string] + ' string</strong>';
     ask = 'You’ll hear <strong>' + noteName(rf.midi) + '</strong> (' + SLONG[rf.string] + ' string, ' + fretWord(rf.fret) + '), then a second note. Find the second note and play it ' + where + '.';
-  } else if (settings.mode === 'any') {
+  } else if (settings.game === 'echo') {
+    ask = 'Listen, then play the tune back' + (mode === 'pick' ? onStr(settings.string) : '') + '. <strong>' + n + ' notes.</strong>';
+  } else if (mode === 'any') {
     ask = multi ? 'Play these ' + n + ' notes back in order, on <strong>any strings</strong>.' : 'Play this note back on <strong>any string</strong>.';
-  } else if (settings.mode === 'pick' || strs.every(s => s === strs[0])) {
+  } else if (mode === 'pick' || strs.every(s => s === strs[0])) {
     ask = (multi ? 'Play these ' + n + ' notes back in order on the ' : 'Play this note back on the ') + '<strong>' + SLONG[strs[0]] + ' string</strong>.';
   } else {
     ask = 'Play them back in order on these strings: <strong>' + strs.map(s => SNAME[s]).join(' → ') + '</strong>';
   }
   el.ask.innerHTML = ask;
-  el.target.className = 'target' + (multi || round.ref ? ' run' : '') + (n >= 4 ? ' long' : '');
-  const nameHtml = m => noteName(m).replace(/(-?\d+)$/, '<small>$1</small>');
+  el.target.className = 'target' + (multi || round.ref ? ' run' : '') + (n >= 4 ? ' long' : '') + (n >= 6 ? ' xlong' : '');
   el.target.innerHTML = (round.ref ? '<span class="tn ref">' + nameHtml(round.ref.midi) + '</span><span class="arrow">→</span>' : '') + round.notes.map((x, i) => {
     const done = round.solved || i < round.idx;
     const show = settings.showName || round.revealed || done;
@@ -933,20 +1234,41 @@ function renderTarget() {
     return '<span class="' + cls + '">' + (show ? nameHtml(x.midi) : '?') + '</span>';
   }).join('');
 }
+// Songs show one line of words at a time, with the word you're on underlined.
+function renderSong() {
+  const r = round, s = r.song, i = Math.min(r.idx, r.notes.length - 1), line = r.notes[i].line;
+  const where = effMode() === 'pick' ? ' on the <strong>' + SLONG[settings.string] + ' string</strong>' : '';
+  let ask = r.timed
+    ? 'Play <strong>' + s.name + '</strong> in time' + where + '. Tap <strong>' + (r.beat0 ? 'Restart' : 'Start song') + '</strong>: you’ll hear the first note, then 4 clicks. Start playing on the beat after the last click.'
+    : 'Play <strong>' + s.name + '</strong> from memory' + where + '. You’ll hear the first note. The song waits for you.';
+  if (r.outside) ask += ' A few notes go outside your neck area.';
+  el.ask.innerHTML = ask;
+  el.target.className = 'target lyr';
+  el.target.innerHTML = r.notes.map((n, k) => {
+    if (n.line !== line) return '';
+    let cls;
+    if (r.timed) cls = n.state === 'hit' ? 'hit' : n.state === 'miss' ? 'miss' : (k === r.idx && r.beat0 && !r.solved ? 'cur' : '');
+    else cls = (r.solved || k < r.idx) ? 'done' : k === r.idx ? 'cur' : '';
+    const nm = settings.showName || k === r.peek ? ' <small>' + noteName(n.midi) + '</small>' : '';
+    return '<span class="tn ' + cls + '">' + n.syl + nm + '</span>';
+  }).join('');
+}
 function setFeedback(t, kind) { el.feedback.textContent = t; el.feedback.className = 'feedback' + (kind ? ' ' + kind : ''); }
 function renderStats() {
-  const d = progress.days[dayKey()] || [0, 0];
-  $('stStreak').textContent = progress.streak;
-  $('stFirst').textContent = d[1] + '/' + d[0];
+  const secs = progress.secs[dayKey()] || 0, min = Math.floor(secs / 60);
+  $('stDays').textContent = dayStreak();
+  $('stMin').innerHTML = secs >= DAY_GOAL ? '<b>' + min + '</b> min today ✓' : '<b>' + min + '/5</b> min today';
 }
 
-function onNote(m, cents, feat) {
+function onNote(m, cents, feat, t0) {
   if (tunerOpen) return;   // nothing is graded while the tuner is open
   lastFeat = feat; lastM = m; lastRight = null;
   if (calOpen) { calHandle(m, feat); return; }
   const g = classify(m, feat); lastGuess = g;
   renderGuess(g);
-  if (round && !round.solved) judge(m, g);
+  if (settings.game === 'hum') { if (hum && hum.phase === 'play') humJudge(m); }
+  else if (round && !round.solved) { if (round.timed) timedNote(m, t0); else judge(m, g); }
+  if (started) bumpActivity();
   drawMarks();
 }
 function renderGuess(g) {
@@ -962,7 +1284,7 @@ const octWord = k => k === 1 ? 'one octave' : k === 2 ? 'two octaves' : k + ' oc
 function judge(m, g) {
   const t = cur(), multi = round.notes.length > 1;
   el.override.hidden = true; round.undo = null;   // "count it" only applies to the latest note
-  const pre = multi ? 'Note ' + (round.idx + 1) + ': ' : '';
+  const pre = round.song ? '“' + t.syl.replace(/[-,.?!;]+$/, '') + '”: ' : multi ? 'Note ' + (round.idx + 1) + ': ' : '';
   // In Intervals it's natural to play the reference note first to get your bearings. Don't count it as a miss.
   if (round.ref && m === round.ref.midi && m !== t.midi) {
     lastRight = null;
@@ -977,6 +1299,8 @@ function judge(m, g) {
       setFeedback('You played ' + noteName(m) + ', ' + ivText(m - round.ref.midi) + ' from ' + noteName(round.ref.midi) + '. Go ' + (diff < 0 ? 'higher.' : 'lower.'), 'bad');
     } else if (diff % 12 === 0) {
       setFeedback(pre + 'Right note (' + NN[t.midi % 12] + '), but ' + octWord(Math.abs(diff) / 12) + (diff > 0 ? ' too high.' : ' too low.'), 'bad');
+    } else if (round.song || settings.game === 'echo') {
+      setFeedback(pre + (Math.abs(diff) <= 2 ? 'close, go a little ' : 'go ') + (diff < 0 ? 'higher.' : 'lower.'), 'bad');
     } else {
       setFeedback(pre + 'You played ' + noteName(m) + '. Go ' + (diff < 0 ? 'higher.' : 'lower.'), 'bad');
     }
@@ -1003,18 +1327,280 @@ function noteCorrect(note) {
   const tail = note ? ' (' + note + ')' : '';
   recordNote(t.midi, !!t.missed);
   if (multi && round.idx < round.notes.length - 1) {
-    round.idx++;
-    setFeedback('✓ ' + noteName(t.midi) + where + tail + '. Now note ' + (round.idx + 1) + '.', 'ok');
+    round.idx++; round.peek = null;
+    if (round.song) setFeedback('✓', 'ok');
+    else setFeedback('✓ ' + noteName(t.midi) + where + tail + '. Now note ' + (round.idx + 1) + '.', 'ok');
     renderTarget(); drawMarks();
     return;
   }
   round.solved = true;
-  recordRound(round.attempts === 0 && !round.revealed);
+  if (round.song) { finishSongWait(); renderTarget(); drawMarks(); return; }
+  const first = round.attempts === 0 && !round.revealed;
+  recordRound(first);
+  const extra = speedResult(first) + echoResult(first);
+  zoneResult(first);
   renderStats();
   const iv = round.ref ? ', ' + ivText(t.midi - round.ref.midi) + ' from ' + noteName(round.ref.midi) : '';
-  setFeedback('✓ ' + (multi ? 'All ' + round.notes.length + ' notes' : noteName(t.midi) + iv + where) + tail, 'ok');
+  setFeedback('✓ ' + (multi ? 'All ' + round.notes.length + ' notes' : noteName(t.midi) + iv + where) + tail + extra, 'ok');
   renderTarget(); drawMarks();
-  nextTimer = setTimeout(() => newRound(true), multi ? 2000 : 1600);
+  nextTimer = setTimeout(() => newRound(true), extra.length > 30 ? 2600 : multi ? 2000 : 1600);
+}
+
+// ---------- speed, Echo length, neck areas ----------
+function speedResult(first) {
+  if (!first || !round.listenAt || !SPEED_GAMES.includes(settings.game)) return '';
+  const g = settings.game, per = Math.max(0, (performance.now() - round.listenAt) / 1000 / round.notes.length);
+  const arr = progress.speed[g] || (progress.speed[g] = []);
+  arr.push(Math.round(per * 100) / 100);
+  while (arr.length > 30) arr.shift();
+  let txt = ' · ' + per.toFixed(1) + 's' + (round.notes.length > 1 ? ' a note' : '');
+  if (settings.speedGoal) {
+    const goal = goalFor(g), fast = progress.goalRun[g] || 0, slow = progress.goalSlow[g] || 0;
+    if (per <= goal) {
+      txt += ' ⚡';
+      progress.goalSlow[g] = 0;
+      progress.goalRun[g] = fast + 1;
+      if (fast + 1 >= 5) {
+        progress.goal[g] = Math.max(0.6, Math.round(goal * 0.85 * 10) / 10);
+        progress.goalRun[g] = 0;
+        txt += ' New goal: ' + progress.goal[g].toFixed(1) + 's.';
+      }
+    } else {
+      progress.goalRun[g] = 0;
+      progress.goalSlow[g] = slow + 1;
+      if (slow + 1 >= 6) {           // goal too hard for now: ease off a little
+        progress.goal[g] = Math.min(8, Math.round(goal * 1.15 * 10) / 10);
+        progress.goalSlow[g] = 0;
+        txt += ' Goal eased to ' + progress.goal[g].toFixed(1) + 's.';
+      }
+    }
+  }
+  saveProgress();
+  return txt;
+}
+function echoResult(first) {
+  if (settings.game !== 'echo') return '';
+  if (first) {
+    echoFails = 0;
+    if (progress.echoLen < 8) { progress.echoLen++; saveProgress(); return ' Next tune: ' + progress.echoLen + ' notes.'; }
+    return '';
+  }
+  echoFails++;
+  if (echoFails >= 2 && progress.echoLen > 2) { progress.echoLen--; echoFails = 0; saveProgress(); return ' Next tune: ' + progress.echoLen + ' notes.'; }
+  return '';
+}
+function zoneResult(first) {
+  const z = settings.zone;
+  if (z < 0 || !SPEED_GAMES.includes(settings.game)) return;
+  const h = progress.zoneHist[z] || (progress.zoneHist[z] = []);
+  h.push(first ? 1 : 0);
+  while (h.length > UNLOCK_N) h.shift();
+  if (z === progress.unlocked && z < ZONES.length - 1 && h.reduce((a, b) => a + b, 0) >= UNLOCK_NEED) {
+    progress.unlocked = z + 1;
+    renderZoneSel();
+    showToast('🔓 Unlocked: ' + zoneLabel(z + 1) + '. Pick it from the Neck menu.');
+  }
+  saveProgress(); renderUnlock();
+}
+
+// ---------- songs ----------
+function finishSongWait() {
+  const r = round, misses = r.notes.filter(n => n.missed).length;
+  const rec = progress.songs[r.song.id] || (progress.songs[r.song.id] = {});
+  rec.done = (rec.done || 0) + 1; saveProgress();
+  setFeedback('✓ You played the whole song' + (misses ? '. ' + misses + (misses === 1 ? ' note' : ' notes') + ' to work on.' : ' without a miss!'), 'ok');
+}
+// In time: the first note, a 4-click count-in, then the song runs at the chosen speed whether you're ready or not.
+function startTimed() {
+  const r = round, spb = 60 / settings.tempo, t0 = ctx.currentTime + 0.05, c0 = t0 + 1.4;
+  const ev = [{ midi: r.notes[0].midi, at: t0 }];
+  for (let i = 0; i < 4; i++) ev.push({ click: true, accent: i === 0, at: c0 + i * spb });
+  schedule(ev);
+  r.beat0 = performance.now() + (c0 + 4 * spb - ctx.currentTime) * 1000;
+  r.spb = spb * 1000; r.idx = 0; r.solved = false;
+  r.notes.forEach(n => { n.state = null; });
+  setFeedback('Get ready…', '');
+}
+const timedWin = r => Math.max(250, r.spb * 0.4);
+function tickTimed(now) {
+  const r = round;
+  if (!r || !r.timed || !r.beat0 || r.solved) return;
+  const win = timedWin(r);
+  let idx = 0, changed = false;
+  r.notes.forEach((n, i) => {
+    const t = r.beat0 + n.at * r.spb;
+    if (t - win <= now) idx = i;
+    if (!n.state && now > t + win + 250) { n.state = 'miss'; changed = true; }
+  });
+  if (idx !== r.idx) { r.idx = idx; changed = true; }
+  if (now >= r.beat0 && el.feedback.textContent === 'Get ready…') setFeedback('');
+  const last = r.notes[r.notes.length - 1];
+  if (now > r.beat0 + last.at * r.spb + win + 300) { finishTimed(); return; }
+  if (changed) renderTarget();
+}
+function timedNote(m, t0) {
+  const r = round;
+  if (!r.beat0) return;
+  const win = timedWin(r), tEff = (t0 || performance.now()) - 40;
+  let best = -1, bd = Infinity;
+  r.notes.forEach((n, i) => {
+    if (n.state) return;
+    const d = Math.abs(tEff - (r.beat0 + n.at * r.spb));
+    if (d <= win && n.midi === m && d < bd) { bd = d; best = i; }
+  });
+  if (best >= 0) { r.notes[best].state = 'hit'; lastRight = true; recordNote(m, false); }
+  else lastRight = false;
+  renderTarget();
+}
+function finishTimed() {
+  const r = round;
+  r.solved = true;
+  r.notes.forEach(n => { if (!n.state) n.state = 'miss'; });
+  const hits = r.notes.filter(n => n.state === 'hit').length, n = r.notes.length, pct = Math.round(100 * hits / n);
+  const rec = progress.songs[r.song.id] || (progress.songs[r.song.id] = {});
+  const prev = rec.best || 0;
+  rec.best = Math.max(prev, pct); saveProgress();
+  setFeedback('You hit ' + hits + ' of ' + n + ' notes in time (' + pct + '%).' + (pct > prev && prev ? ' New best!' : prev && pct <= prev ? ' Best: ' + prev + '%.' : ''), pct >= 80 ? 'ok' : '');
+  renderTarget();
+}
+
+// ---------- hum it, then play it ----------
+const freshHum = () => ({ phase: 'idle', frames: [], notes: [], played: [], idx: 0, revealed: false, targets: null, t0: 0, lastVoice: 0 });
+function humRecord() {
+  clearTimeout(nextTimer);
+  hum = freshHum(); hum.phase = 'rec'; hum.t0 = performance.now();
+  lastGuess = null; lastM = null; lastRight = null;
+  setFeedback('');
+  renderTarget(); drawMarks();
+}
+function humFrame(mf, now, lv) {
+  if (!hum || hum.phase !== 'rec') return;
+  hum.frames.push({ t: now, mf, lv });
+  if (mf != null) { hum.lastVoice = now; bumpActivity(); }
+  if (now - hum.t0 > 12000 || (hum.lastVoice && now - hum.lastVoice > 1500)) humStop();
+}
+function humStop() {
+  hum.notes = segmentHum(hum.frames); hum.frames = [];
+  if (!hum.notes.length) {
+    hum.phase = 'idle';
+    setFeedback('I didn’t catch any notes. Hum a bit louder or closer to the phone, then try again.', 'bad');
+  } else {
+    hum.phase = 'play';
+    setFeedback('Got ' + hum.notes.length + (hum.notes.length === 1 ? ' note' : ' notes') + '. Now play them on your guitar. Tap Hear it to check what I heard.', '');
+  }
+  renderTarget(); drawMarks();
+}
+// Split the pitch track into notes. A note ends at a short silence or a dip in loudness (so repeated notes
+// stay separate), or when the pitch moves and stays moved for ~0.1 s.
+function segmentHum(frames) {
+  const segs = [], med = a => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+  let cur = null, gap = 0, off = [];
+  const close = () => {
+    if (cur && cur.end - cur.start >= 130 && cur.vals.length >= 7) {
+      const v = cur.vals.slice().sort((a, b) => a - b), lo = Math.floor(v.length * 0.2), hi = Math.max(lo + 1, Math.ceil(v.length * 0.8));
+      segs.push({ p: med(v.slice(lo, hi)), start: cur.start, end: cur.end });
+    }
+    cur = null; off = [];
+  };
+  for (const f of frames) {
+    const dip = cur && f.lv < cur.peak * 0.3;
+    if (f.mf == null || dip) { if (++gap >= (f.mf == null ? 3 : 2)) close(); continue; }
+    gap = 0;
+    if (!cur) { cur = { start: f.t, end: f.t, vals: [f.mf], peak: f.lv }; continue; }
+    cur.peak = Math.max(cur.peak, f.lv);
+    if (Math.abs(f.mf - med(cur.vals.slice(-8))) > 0.75) {
+      off.push(f);
+      if (off.length >= 6) { const o = off; close(); cur = { start: o[0].t, end: f.t, vals: o.map(x => x.mf), peak: Math.max(...o.map(x => x.lv)) }; }
+    } else { off = []; cur.vals.push(f.mf); cur.end = f.t; }
+  }
+  close();
+  const out = [];
+  segs.forEach(s => {
+    const p = out[out.length - 1];
+    if (p && Math.abs(p.p - s.p) < 0.5 && s.start - p.end < 25) p.end = s.end; else out.push(s);   // only rejoin a note that was split with no gap
+  });
+  return out.slice(0, 10).map(s => s.p);
+}
+// Where the tune sits on the guitar: starts from the first note you played, or an octave of your hum inside the neck area.
+function humTargets() {
+  const h = hum.notes, rel = h.map(x => Math.round(x - h[0]));
+  let base = hum.played.length ? hum.played[0] : Math.round(h[0]);
+  if (!hum.played.length) {
+    const pos = positionsInRange().map(p => p.midi), lo = Math.min(...pos), hi = Math.max(...pos);
+    const rlo = Math.min(...rel), rhi = Math.max(...rel);
+    let best = base, bs = Infinity;
+    for (let k = -5; k <= 5; k++) {
+      const b = base + 12 * k, a = b + rlo, z = b + rhi;
+      if (a < OPEN[0]) continue;
+      const sc = 100 * (Math.max(0, lo - a) + Math.max(0, z - hi)) + Math.abs((a + z) / 2 - (lo + hi) / 2);
+      if (sc < bs) { bs = sc; best = b; }
+    }
+    base = best;
+  }
+  return rel.map(r => base + r);
+}
+function humJudge(m) {
+  const h = hum.notes, k = hum.idx;
+  const d = k === 0 ? ((m - h[0]) % 12 + 18) % 12 - 6 : m - (hum.played[k - 1] + h[k] - h[k - 1]);
+  if (Math.abs(d) > 0.75) {
+    lastRight = false;
+    const dir = d < 0 ? 'higher' : 'lower';
+    setFeedback((k === 0 ? 'First note: ' : 'Note ' + (k + 1) + ': ') + (Math.abs(d) <= 2.5 ? 'close, go a little ' + dir + '.' : 'go ' + dir + '.'), 'bad');
+    return;
+  }
+  lastRight = true;
+  hum.played.push(m); hum.idx++;
+  if (hum.revealed) hum.targets = humTargets();
+  if (hum.idx >= h.length) { hum.phase = 'done'; setFeedback('✓ That’s your tune! Record another, or tap Start over to play it again.', 'ok'); }
+  else setFeedback('✓ ' + hum.idx + ' of ' + h.length + '. Keep going.', 'ok');
+  renderTarget();
+}
+function humHear() { if (hum && hum.notes.length) playNotes(humTargets()); }
+function humReveal() {
+  if (!hum || hum.phase !== 'play') return;
+  hum.revealed = true; hum.targets = humTargets();
+  setFeedback('Here’s where your tune is. The numbers show the order.', '');
+  renderTarget(); drawMarks();
+}
+function humRestart() {
+  if (!hum || !hum.notes.length) return;
+  hum.played = []; hum.idx = 0; hum.phase = 'play';
+  if (hum.revealed) hum.targets = humTargets();
+  setFeedback(''); renderTarget(); drawMarks();
+}
+function humSvg() {
+  const h = hum.notes, n = h.length, W = 320, H = 84;
+  const lo = Math.min(...h), hi = Math.max(...h), span = Math.max(5, hi - lo), base = (lo + hi) / 2 - span / 2, cw = (W - 8) / n;
+  return '<svg class="hum" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="The shape of your tune, ' + n + ' notes">' + h.map((p, k) => {
+    const y = 6 + (1 - (p - base) / span) * (H - 22);
+    const cls = k < hum.idx ? 'hb-ok' : k === hum.idx && hum.phase === 'play' ? 'hb-cur' : 'hb';
+    return '<rect class="' + cls + '" x="' + (4 + k * cw + 3).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(4, cw - 6).toFixed(1) + '" height="10" rx="5"/>';
+  }).join('') + '</svg>';
+}
+function renderHum() {
+  const ph = hum ? hum.phase : 'idle';
+  el.target.className = 'target';
+  if (ph === 'rec') {
+    el.ask.innerHTML = 'Hum or whistle now. It stops by itself when you pause.';
+    el.target.innerHTML = '<span class="recDot">Listening</span>';
+  } else if (ph === 'idle') {
+    el.ask.innerHTML = 'Hum or whistle a few notes of any tune, even the song on the radio. Then play it on your guitar. Tap <strong>Record hum</strong>.';
+    el.target.innerHTML = '<span class="tn hid">♪</span>';
+  } else {
+    el.ask.innerHTML = ph === 'done' ? 'Nice. That’s the whole tune.' : 'Play your tune on guitar, <strong>' + hum.notes.length + ' notes</strong>. Start on any string, any octave.';
+    el.target.innerHTML = humSvg();
+  }
+}
+
+// ---------- per-frame updates ----------
+function tick(now) {
+  tickTimed(now);
+  const show = started && settings.speedGoal && SPEED_GAMES.includes(settings.game) && round && !round.solved && round.listenAt > 0;
+  if (el.speedBar.hidden === !!show) el.speedBar.hidden = !show;
+  if (!show) return;
+  const frac = Math.max(0, now - round.listenAt) / (goalFor(settings.game) * round.notes.length * 1000);
+  el.speedFill.style.width = Math.min(100, frac * 100) + '%';
+  el.speedFill.classList.toggle('over', frac > 1);
 }
 
 // ---------- fretboard ----------
@@ -1063,17 +1649,37 @@ function drawMarks() {
   if (!marksG) return;
   let h = '';
   const dot = (s, f, cls, r) => (f <= fbFrets) ? '<circle class="' + cls + '" cx="' + fretX(f) + '" cy="' + stringY(s) + '" r="' + r + '"/>' : '';
-  if (round) {
+  const num = (c, i) => c.f <= fbFrets ? '<text class="mk-num" x="' + (fretX(c.f) + 8) + '" y="' + (stringY(c.s) - 6) + '">' + i + '</text>' : '';
+  const inZone = c => c.f >= settings.fretMin && c.f <= settings.fretMax;
+  const spots = (midi, s, f) => {
+    if (s != null) return [{ s, f }];
+    const all = candidates(midi), z = all.filter(inZone);
+    return z.length ? z : all;
+  };
+  if (settings.game === 'hum') {
+    // One spot per note, each close to the one before, the way a hand would move.
+    if (hum && hum.revealed && hum.targets) {
+      let prev = null;
+      hum.targets.forEach((m, i) => {
+        const opts = spots(m);
+        if (!opts.length) return;
+        const c = prev ? opts.slice().sort((a, b) => (Math.abs(a.f - prev.f) + Math.abs(a.s - prev.s) * 0.7) - (Math.abs(b.f - prev.f) + Math.abs(b.s - prev.s) * 0.7))[0] : opts[0];
+        h += dot(c.s, c.f, i < hum.idx ? 'mk-hit' : 'mk-target', 9) + num(c, i + 1);
+        prev = c;
+      });
+    }
+  } else if (round && round.song) {
+    if (round.peek != null && round.peek === round.idx && !round.solved) {
+      const t = cur();
+      spots(t.midi, t.string, t.fret).forEach(c => { h += dot(c.s, c.f, 'mk-target', 9); });
+    }
+  } else if (round) {
     const multi = round.notes.length > 1;
     if (round.ref) h += dot(round.ref.string, round.ref.fret, 'mk-ref', 7);
     round.notes.forEach((t, i) => {
       if (!(round.revealed || round.solved || i < round.idx)) return;
-      const ps = t.string != null ? [{ s: t.string, f: t.fret }]
-        : candidates(t.midi).filter(c => c.f >= settings.fretMin && c.f <= settings.fretMax);
-      ps.forEach(c => {
-        h += dot(c.s, c.f, 'mk-target', 9);
-        if (multi && c.f <= fbFrets) h += '<text class="mk-num" x="' + (fretX(c.f) + 8) + '" y="' + (stringY(c.s) - 6) + '">' + (i + 1) + '</text>';
-      });
+      const ps = t.string != null ? [{ s: t.string, f: t.fret }] : candidates(t.midi).filter(inZone);
+      ps.forEach(c => { h += dot(c.s, c.f, 'mk-target', 9); if (multi) h += num(c, i + 1); });
     });
   }
   if (lastGuess && lastM != null) {
@@ -1169,25 +1775,110 @@ el.calClear.addEventListener('click', () => {
 const fretOpts = Array.from({ length: 16 }, (_, f) => '<option value="' + f + '">' + (f === 0 ? 'open' : f) + '</option>').join('');
 el.fretMin.innerHTML = fretOpts;
 el.fretMax.innerHTML = fretOpts;
+el.songSel.innerHTML = SONGS.map(s => '<option value="' + s.id + '">' + s.name + '</option>').join('');
+el.tempo.innerHTML = TEMPOS.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('');
+function renderZoneSel() {
+  el.zoneSel.innerHTML = ZONES.map((z, i) => {
+    const locked = i > progress.unlocked;
+    return '<option value="' + i + '"' + (locked ? ' disabled' : '') + '>' + (locked ? '🔒 ' : '') + zoneLabel(i) + '</option>';
+  }).join('') + '<option value="-1">Custom frets</option>';
+  el.zoneSel.value = String(settings.zone);
+}
+function renderUnlock() {
+  const z = settings.zone;
+  const show = z >= 0 && z === progress.unlocked && z < ZONES.length - 1 && SPEED_GAMES.includes(settings.game);
+  el.unlockRow.hidden = !show;
+  if (!show) return;
+  const got = (progress.zoneHist[z] || []).reduce((a, b) => a + b, 0);
+  el.unlockTxt.textContent = '🔒 ' + zoneLabel(z + 1) + ' opens when you get ' + UNLOCK_NEED + ' of your last ' + UNLOCK_N + ' right on the first try here. You have ' + got + '.';
+  el.unlockBar.style.width = Math.min(100, 100 * got / UNLOCK_NEED) + '%';
+}
+const vis = (node, on) => { node.hidden = !on; };
 function renderControls() {
-  el.gameSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.game === settings.game)));
-  $('runLenLbl').hidden = settings.game === 'interval';
-  $('lgRef').hidden = settings.game !== 'interval';
+  const g = settings.game, mode = effMode(), classic = g === 'notes' || g === 'interval', speedy = SPEED_GAMES.includes(g);
+  el.gameSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.game === g)));
+  el.zoneSel.value = String(settings.zone);
+  vis(el.modeSeg, g !== 'hum');
+  const noRandom = g === 'echo' || g === 'songs';
+  el.modeSeg.classList.toggle('two', noRandom);
+  el.modeSeg.querySelectorAll('button').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    if (b.dataset.mode === 'random') b.hidden = noRandom;
+  });
+  vis(el.chips, g !== 'hum' && mode === 'pick');
+  el.chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === settings.string)));
+  vis(el.customRange, settings.zone === -1);
+  vis($('runLenLbl'), g === 'notes');
+  vis($('rangeRow'), settings.zone === -1 || g === 'notes');
+  vis($('lblShow'), g !== 'hum');
+  vis($('lblNatural'), classic);
+  vis($('lblFocus'), classic);
+  vis($('lblTwice'), speedy);
+  vis($('lblSpeed'), speedy);
+  vis(el.songBar, g === 'songs');
+  el.songSel.value = settings.songId;
+  el.timedSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.timed === '1') === !!settings.timed)));
+  vis($('tempoLbl'), !!settings.timed);
+  el.tempo.value = String(settings.tempo);
+  vis($('lgRef'), g === 'interval');
   el.sens.value = String(settings.sens);
   el.natural.checked = !!settings.natural; el.focus.checked = !!settings.focus; el.twice.checked = !!settings.twice;
-  el.modeSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === settings.mode)));
-  el.chips.hidden = settings.mode !== 'pick';
-  el.chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === settings.string)));
+  el.speedGoal.checked = !!settings.speedGoal;
   el.fretMin.value = String(settings.fretMin);
   el.fretMax.value = String(settings.fretMax);
   el.runLen.value = String(settings.runLen);
   el.showName.checked = !!settings.showName;
+  renderUnlock();
+}
+function renderButtons() {
+  const g = settings.game;
+  const show = (b, on, label) => { b.hidden = !on; if (label) b.textContent = label; };
+  if (!started) {
+    show(el.start, true, g === 'hum' ? 'Record hum' : 'Start');
+    show(el.play, false); show(el.reveal, false); show(el.next, false);
+    return;
+  }
+  if (g === 'hum') {
+    const ph = hum ? hum.phase : 'idle', has = !!(hum && hum.notes.length);
+    show(el.start, true, ph === 'rec' ? 'Stop' : has ? 'Record new hum' : 'Record hum');
+    el.start.classList.toggle('primary', ph !== 'play');   // while you're playing the tune back, recording isn't the main action
+    show(el.play, has && ph !== 'rec', 'Hear it');
+    show(el.reveal, ph === 'play', 'Show me');
+    show(el.next, ph === 'done' || (ph === 'play' && hum.idx > 0), 'Start over');
+    return;
+  }
+  show(el.start, false); el.start.classList.add('primary');
+  if (g === 'songs') {
+    const timed = !!(round && round.timed);
+    show(el.play, true, timed ? (round.beat0 ? 'Restart' : 'Start song') : round && round.solved ? 'Play it again' : 'Hear next note');
+    show(el.reveal, !timed && !(round && round.solved), 'Show me');
+    show(el.next, true, 'Next song');
+    return;
+  }
+  show(el.play, true, 'Play again'); show(el.reveal, true, 'Reveal'); show(el.next, true, 'Next');
 }
 el.chips.innerHTML = SNAME.map((n, s) => '<button type="button" data-s="' + s + '" aria-label="' + SLONG[s] + ' string">' + n + '</button>').join('');
 function settingsChanged(newOne) {
   saveSettings(); renderControls();
-  if (newOne && running) newRound(true); else { renderTarget(); drawMarks(); }
+  if (newOne && started) newRound(true); else { renderTarget(); drawMarks(); }
 }
+el.gameSeg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.dataset.game === settings.game) return;
+  settings.game = b.dataset.game; round = null; hum = null;
+  lastGuess = null; lastM = null; setFeedback(''); el.override.hidden = true;
+  settingsChanged(true);
+});
+el.zoneSel.addEventListener('change', () => {
+  const z = +el.zoneSel.value;
+  settings.zone = z;
+  if (z >= 0) { settings.fretMin = ZONES[z][0]; settings.fretMax = ZONES[z][1]; }
+  drawBoard(); settingsChanged(true);
+});
+el.optBtn.addEventListener('click', () => {
+  const open = el.optPanel.hidden;
+  el.optPanel.hidden = !open;
+  el.optBtn.setAttribute('aria-expanded', String(open));
+});
 el.modeSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.mode = b.dataset.mode; settingsChanged(true); });
 el.chips.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.string = +b.dataset.s; settingsChanged(true); });
 el.fretMin.addEventListener('change', () => {
@@ -1202,20 +1893,40 @@ el.fretMax.addEventListener('change', () => {
 });
 el.runLen.addEventListener('change', () => { settings.runLen = +el.runLen.value; settingsChanged(true); });
 el.showName.addEventListener('change', () => { settings.showName = el.showName.checked; settingsChanged(false); });
-el.gameSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.game = b.dataset.game; settingsChanged(true); });
 el.sens.addEventListener('input', () => { settings.sens = +el.sens.value; saveSettings(); });
 el.natural.addEventListener('change', () => { settings.natural = el.natural.checked; settingsChanged(true); });
 el.focus.addEventListener('change', () => { settings.focus = el.focus.checked; settingsChanged(false); });
 el.twice.addEventListener('change', () => { settings.twice = el.twice.checked; settingsChanged(false); });
+el.speedGoal.addEventListener('change', () => { settings.speedGoal = el.speedGoal.checked; settingsChanged(false); });
+el.songSel.addEventListener('change', () => { settings.songId = el.songSel.value; settingsChanged(true); });
+el.timedSeg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; settings.timed = b.dataset.timed === '1'; settingsChanged(true); });
+el.tempo.addEventListener('change', () => { settings.tempo = +el.tempo.value; settingsChanged(true); });
 
 el.start.addEventListener('click', async () => {
   if (!(await startAudio())) return;
-  el.start.hidden = true; el.play.hidden = false; el.reveal.hidden = false; el.next.hidden = false;
-  newRound(true);
+  if (!started) {
+    started = true;
+    newRound(settings.game !== 'hum');
+    if (settings.game === 'hum') humRecord();
+    return;
+  }
+  if (settings.game === 'hum') { if (hum && hum.phase === 'rec') humStop(); else humRecord(); }
 });
-el.play.addEventListener('click', playRound);
+el.play.addEventListener('click', () => {
+  if (settings.game === 'hum') { humHear(); return; }
+  if (round && round.song && round.solved && !round.timed) { newRound(true); return; }
+  playRound();
+});
 el.reveal.addEventListener('click', () => {
+  if (settings.game === 'hum') { humReveal(); return; }
   if (!round || round.solved) return;
+  if (round.song) {
+    const t = cur();
+    round.peek = round.idx; t.missed = true;
+    setFeedback('It’s ' + noteName(t.midi) + (t.string != null ? ' on the ' + SLONG[t.string] + ' string, ' + fretWord(t.fret) : '') + '.', '');
+    renderTarget(); drawMarks();
+    return;
+  }
   round.revealed = true; breakStreak(); renderStats(); renderTarget(); drawMarks();
   round.notes.forEach((t, i) => { if (i >= round.idx) t.missed = true; });
   let desc = round.notes.map(t => noteName(t.midi) + (t.string != null ? ' (' + SLONG[t.string] + ' string, ' + fretWord(t.fret) + ')' : '')).join(', ');
@@ -1223,9 +1934,16 @@ el.reveal.addEventListener('click', () => {
   setFeedback((round.notes.length > 1 ? 'The notes are ' : 'It’s ') + desc + '.', '');
 });
 el.next.addEventListener('click', () => {
+  if (settings.game === 'hum') { humRestart(); return; }
+  if (settings.game === 'songs') {
+    const i = SONGS.findIndex(s => s.id === settings.songId);
+    settings.songId = SONGS[(i + 1) % SONGS.length].id;
+    settingsChanged(true);
+    return;
+  }
   if (round && !round.solved) {
     if (cur().missed) recordNote(cur().midi, true);   // skipped after a miss counts as a miss; an untried skip doesn't
-    recordRound(false); renderStats();
+    recordRound(false); echoResult(false); zoneResult(false); renderStats();
   }
   newRound(true);
 });
@@ -1306,11 +2024,20 @@ const progSheet = $('progSheet');
 function renderProgress() {
   const today = progress.days[dayKey()] || [0, 0];
   const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '–';
+  const sp = [];
+  SPEED_GAMES.forEach(g => (progress.speed[g] || []).slice(-20).forEach(x => sp.push(x)));
+  const avg = sp.length ? (sp.reduce((a, b) => a + b, 0) / sp.length).toFixed(1) + 's' : '–';
   $('progTiles').innerHTML = [
+    ['🔥 ' + dayStreak(), 'day streak (5 min a day)'],
+    [Math.floor((progress.secs[dayKey()] || 0) / 60) + ' min', 'practiced today'],
+    [progress.bestDays, 'best day streak'],
+    [avg, 'time per note, recently'],
     [today[1] + '/' + today[0], 'first try today (' + pct(today[1], today[0]) + ')'],
     [progress.firstTry + '/' + progress.rounds, 'first try, all time (' + pct(progress.firstTry, progress.rounds) + ')'],
-    [progress.streak, 'current streak'],
-    [progress.best, 'best streak']
+    [progress.streak, 'right in a row now'],
+    [progress.best, 'best in a row'],
+    [(progress.unlocked + 1) + '/' + ZONES.length, 'neck areas open'],
+    [progress.echoLen, 'notes per Echo tune']
   ].map(([v, l]) => '<div class="tile"><b>' + v + '</b><span>' + l + '</span></div>').join('');
 
   // last 14 days: grey bar = rounds, green part = first-try rounds
@@ -1348,7 +2075,9 @@ $('progReset').addEventListener('click', () => {
     return;
   }
   clearTimeout(resetArmed); resetArmed = 0; b.textContent = 'Reset progress';
-  progress = freshProgress(); saveProgress(); renderProgress(); renderStats();
+  progress = freshProgress(); saveProgress();
+  if (settings.zone > 0) { settings.zone = 0; settings.fretMin = ZONES[0][0]; settings.fretMax = ZONES[0][1]; saveSettings(); drawBoard(); }
+  renderZoneSel(); renderControls(); renderProgress(); renderStats();
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
@@ -1357,10 +2086,14 @@ document.addEventListener('keydown', e => {
 
 // ---------- init ----------
 computeSd();
+progress.bestDays = Math.max(progress.bestDays, dayStreak());
+renderZoneSel();
 renderControls();
 renderCalStatus();
 renderStats();
 drawBoard();
+renderTarget();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveProgress(); });
 })();
 </script>
 </body>
