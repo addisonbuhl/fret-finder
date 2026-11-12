@@ -138,6 +138,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
 .calbar p{margin:0;font-size:13px;color:var(--muted);flex:1 1 200px}
 .calbar p b{color:var(--ink);font-weight:600}
 .calbar .btn{flex:0 0 auto;min-height:42px;padding:0 16px}
+.calBtns{display:flex;gap:8px;flex:1 1 auto;justify-content:flex-end}
 
 .sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:20;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
@@ -160,6 +161,16 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
 .calMic .bar{flex:1;height:6px;border-radius:3px;background:var(--panel);overflow:hidden}
 .calMic .bar i{display:block;height:100%;width:0;background:var(--brass);transition:width .06s linear}
 
+.tunBox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.tunNote{font:700 76px/1 var(--display);font-variant-numeric:tabular-nums;transition:color .15s,opacity .2s}
+.tunNote.dim{opacity:.35}
+.tunNote.in{color:var(--ok)}
+.tunHz{font-size:14px;color:var(--muted);min-height:1.4em}
+.tunMeter{width:100%;height:40px}
+.tunMeter::before{inset:0 calc(50% - 5%)}
+.tunScale{width:100%;display:flex;justify-content:space-between;font:500 11px var(--mono);color:var(--muted);margin-top:-4px}
+.tunMsg{font-weight:600;min-height:1.5em}
+.tunMsg.ok{color:var(--ok)} .tunMsg.bad{color:var(--bad)}
 .err{background:color-mix(in srgb,var(--bad) 16%,var(--panel));border:1px solid var(--bad);border-radius:12px;padding:12px 14px;font-size:14px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -246,7 +257,10 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
 
   <section class="calbar">
     <p>String detection: <b id="calStatus">not calibrated</b></p>
-    <button type="button" class="btn" id="calBtn">Calibrate</button>
+    <div class="calBtns">
+      <button type="button" class="btn" id="tunBtn">Tuner</button>
+      <button type="button" class="btn" id="calBtn">Calibrate</button>
+    </div>
   </section>
 </main>
 
@@ -262,6 +276,22 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
       <button type="button" class="btn primary" id="calDone">Done</button>
       <button type="button" class="btn" id="calClear">Clear all</button>
     </div>
+  </div>
+</div>
+
+<div class="sheet" id="tunSheet" hidden role="dialog" aria-modal="true" aria-labelledby="tunTitle">
+  <div class="sheetIn">
+    <h2 id="tunTitle">Tuner</h2>
+    <p>Pluck one open string and let it ring. Tap a string below to hear its note.</p>
+    <div class="tunBox" aria-live="polite">
+      <div class="tunNote dim" id="tunNote">–</div>
+      <div class="tunHz mono" id="tunHz">Play a string</div>
+      <div class="meter tunMeter" aria-hidden="true"><div class="needle" id="tunNeedle"></div></div>
+      <div class="tunScale" aria-hidden="true"><span>−50¢</span><span>in tune</span><span>+50¢</span></div>
+      <div class="tunMsg" id="tunMsg"></div>
+    </div>
+    <div class="chips" id="tunStrings" role="group" aria-label="Play a reference note"></div>
+    <div class="btns"><button type="button" class="btn primary" id="tunDone">Done</button></div>
   </div>
 </div>
 
@@ -345,6 +375,11 @@ function detectPitch(buf, sr) {
     let mv = 1e9;
     for (let t = tauMin; t < tauMax; t++) if (ydp[t] < mv) { mv = ydp[t]; tau = t; }
     if (mv > 0.35) return null;
+    // With a noisy (quiet) signal the deepest dip can land on 2x the period, which reads an octave low.
+    // Take the first dip that is nearly as deep instead.
+    for (let t = tauMin + 1; t < tau; t++) {
+      if (ydp[t] < ydp[t - 1] && ydp[t] <= ydp[t + 1] && ydp[t] < mv + 0.06) { tau = t; break; }
+    }
   }
   let tr = tau;
   if (tau > 1 && tau < tauMax) {
@@ -534,7 +569,7 @@ const el = {
 };
 
 // ---------- audio ----------
-let ctx = null, analyser = null, timeBuf = null, running = false, ignoreUntil = 0, wakeLock = null, micStream = null;
+let ctx = null, analyser = null, timeBuf = null, rawAnalyser = null, rawBuf = null, running = false, ignoreUntil = 0, wakeLock = null, micStream = null;
 const pluckCache = new Map();
 
 function showErr(msg) { el.err.textContent = msg; el.err.hidden = !msg; }
@@ -556,11 +591,22 @@ async function startAudio() {
     micStream = stream;
     stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => { running = false; }));
     const src = ctx.createMediaStreamSource(stream);
+    // Pitch and loudness use a band-passed copy (55 Hz to ~1.8 kHz). That covers every guitar
+    // fundamental but drops most of the phone mic's hiss, so quiet notes stand out from the noise.
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 55; hp.Q.value = 0.707;
+    const lp1 = ctx.createBiquadFilter(); lp1.type = 'lowpass'; lp1.frequency.value = 1800; lp1.Q.value = 0.707;
+    const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 1800; lp2.Q.value = 0.707;
     analyser = ctx.createAnalyser();
     analyser.fftSize = 4096;
     analyser.smoothingTimeConstant = 0;
-    src.connect(analyser);
+    src.connect(hp); hp.connect(lp1); lp1.connect(lp2); lp2.connect(analyser);
     timeBuf = new Float32Array(analyser.fftSize);
+    // String detection needs the full tone (harmonics up to ~7 kHz), so it reads the unfiltered mic.
+    rawAnalyser = ctx.createAnalyser();
+    rawAnalyser.fftSize = 4096;
+    rawAnalyser.smoothingTimeConstant = 0;
+    src.connect(rawAnalyser);
+    rawBuf = new Float32Array(rawAnalyser.fftSize);
     running = true;
     requestWake();
     requestAnimationFrame(loop);
@@ -654,7 +700,7 @@ function loop() {
   // Room-noise estimate: drops quickly, rises while no pitch is heard, and holds still while a note
   // is sounding, so a quiet note that rings for a while isn't mistaken for background noise.
   const g = gateParams();
-  if (noise === 0 && rms > 0) noise = rms;
+  if (noise === 0 && rms > 0) noise = Math.min(rms, g.floor / g.k);   // start low; it rises to the room level within a second or two
   else if (rms < noise) noise += (rms - noise) * 0.1;
   const gate = Math.max(g.floor, noise * g.k);
   const unvoiced = () => { if (rms > noise) noise = Math.min(rms, noise * 1.01); };
@@ -680,7 +726,8 @@ function loop() {
 
   const age = now - tr.t0;
   if (!tr.done && age >= 40 && tr.featN < 8) {
-    const v = harmonicProfile(timeBuf, sr, p.f);
+    rawAnalyser.getFloatTimeDomainData(rawBuf);
+    const v = harmonicProfile(rawBuf, sr, p.f);
     if (v) {
       for (let k = 0; k < HARM; k++) if (v[k] != null) { tr.feat[k] += v[k]; tr.featCnt[k]++; }
       tr.featN++;
@@ -697,6 +744,7 @@ function loop() {
 }
 
 function setLive(m, cents, idle) {
+  if (tunerOpen) tunerShow(m, cents);
   if (m == null) {
     el.liveNote.classList.add('dim');
     if (el.liveCents.textContent !== idle) el.liveCents.textContent = idle;
@@ -820,6 +868,7 @@ function renderStats() {
 }
 
 function onNote(m, cents, feat) {
+  if (tunerOpen) return;   // nothing is graded while the tuner is open
   lastFeat = feat; lastM = m; lastRight = null;
   if (calOpen) { calHandle(m, feat); return; }
   const g = classify(m, feat); lastGuess = g;
@@ -1116,6 +1165,45 @@ el.override.addEventListener('click', () => {
 });
 el.calBtn.addEventListener('click', openCal);
 
+// ---------- tuner ----------
+// Uses the same listening loop. Cents are smoothed so the needle settles instead of jittering.
+let tunerOpen = false, tunM = null, tunC = 0, tunIdle = 0;
+const tunSheet = $('tunSheet'), tunNote = $('tunNote'), tunHz = $('tunHz'), tunNeedle = $('tunNeedle'), tunMsg = $('tunMsg'), tunStrings = $('tunStrings');
+tunStrings.innerHTML = SNAME.map((n, s) => '<button type="button" data-s="' + s + '" aria-label="Play ' + SLONG[s] + ' string, ' + noteName(OPEN[s]) + '">' + n + '</button>').join('');
+function tunerShow(m, cents) {
+  if (m == null) {
+    // keep the last reading briefly so the display doesn't flicker between plucks
+    if (++tunIdle > 20) { tunNote.classList.add('dim'); tunNote.classList.remove('in'); tunNeedle.classList.remove('in'); tunMsg.textContent = ''; tunMsg.className = 'tunMsg'; tunHz.textContent = 'Play a string'; }
+    return;
+  }
+  tunIdle = 0;
+  if (m !== tunM) { tunM = m; tunC = cents; } else tunC = tunC * 0.75 + cents * 0.25;
+  const c = Math.round(tunC), inTune = Math.abs(tunC) <= 5;
+  const hz = 440 * Math.pow(2, (m + tunC / 100 - 69) / 12);
+  tunNote.textContent = noteName(m);
+  tunNote.classList.remove('dim'); tunNote.classList.toggle('in', inTune);
+  tunHz.textContent = hz.toFixed(1) + ' Hz  ' + (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c) + '¢';
+  tunNeedle.style.left = (50 + Math.max(-50, Math.min(50, tunC))) + '%';
+  tunNeedle.classList.toggle('in', inTune);
+  tunMsg.textContent = inTune ? 'In tune' : tunC < 0 ? 'Flat, tune up' : 'Sharp, tune down';
+  tunMsg.className = 'tunMsg ' + (inTune ? 'ok' : 'bad');
+  const s = OPEN.indexOf(m);
+  tunStrings.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === s)));
+}
+async function openTuner() {
+  if (!(await startAudio())) return;
+  clearTimeout(nextTimer);
+  tunerOpen = true; tunM = null; tunIdle = 99; tunerShow(null);
+  tunSheet.hidden = false; $('tunDone').focus();
+}
+function closeTuner() {
+  tunerOpen = false; tunSheet.hidden = true;
+  if (round && round.solved) newRound(true);
+}
+$('tunBtn').addEventListener('click', openTuner);
+$('tunDone').addEventListener('click', closeTuner);
+tunStrings.addEventListener('click', e => { const b = e.target.closest('button'); if (b) playNotes([OPEN[+b.dataset.s]]); });
+
 // ---------- progress sheet ----------
 const progSheet = $('progSheet');
 function renderProgress() {
@@ -1167,7 +1255,7 @@ $('progReset').addEventListener('click', () => {
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (calOpen) closeCal(); else if (!progSheet.hidden) closeProg();
+  if (calOpen) closeCal(); else if (tunerOpen) closeTuner(); else if (!progSheet.hidden) closeProg();
 });
 
 // ---------- init ----------

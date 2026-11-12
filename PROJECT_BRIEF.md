@@ -15,7 +15,7 @@ The current code is `index.html` in this project: a single self-contained file w
 - Clear feedback when the note is right but in the wrong octave, or right but on the wrong string.
 - Multi-note runs.
 
-## Current features (v3)
+## Current features (v3.1)
 - **Games:** "Play it back" (hear notes, play them back) and "Intervals": the app shows and plays a reference note (with its string and fret), then plays a second note up to an octave away. You find and play the second note. Feedback names the interval, e.g. "You played E3, a major 3rd up from C3. Go higher." The reference shows as a filled brass dot on the fretboard. Notes per round is hidden in Intervals.
 - **Modes:** Any string, One string (E A D G B e chips), and Random string (each note gets its own string).
 - **Fret range:** separate low and high fret selects, each from open to 15. Frets outside the range are dimmed on the fretboard.
@@ -34,6 +34,8 @@ The current code is `index.html` in this project: a single self-contained file w
 - **Saved progress:** stored in the browser and kept across reloads. The header shows the current streak and today's first-try count. Tap "Progress ›" to see today and all-time first-try rates, current and best streak, a 14-day bar chart, and the notes you miss most (shown after 3 plays). "Reset progress" asks for a second tap. A note counts as missed if you played a wrong note or wrong string before getting it, revealed it, or skipped it after a miss. Skipping a note you didn't try doesn't count against it. Up to 120 days of history are kept.
 - **Live display:** the note being heard, a cents meter (green within ±10¢) and the string guess.
 - **Fretboard SVG:** target rings (numbered in runs), a dot showing what you played (green if right, red if wrong), and dashed rings for every possible position when the string isn't known.
+- **Tuner:** a "Tuner" button next to Calibrate opens a chromatic tuner: note, Hz, cents needle (green within ±5¢), "Flat, tune up" / "Sharp, tune down", and the matching open string highlighted. Tap a string chip to hear its reference note. Nothing is graded while it is open.
+- **Mic level and sensitivity:** under the live display. The bar turns green once a sound is loud enough to count (gold line). The sensitivity slider (1 to 10, default 7) moves that line. It was added because an unplugged electric guitar was too quiet to register.
 - **Calibration:** pluck each string open, at fret 5 and at fret 12 (18 notes). It's stored in the browser, so it survives reloads. "Clear all" asks for a second tap.
 - **Settings** are remembered in localStorage.
 
@@ -46,6 +48,7 @@ The current code is `index.html` in this project: a single self-contained file w
 
 ## How it works
 - **Reference sound:** a Karplus-Strong plucked string with fractional delay (accurate to under 1 cent) and a 5.2 kHz low-pass filter. The mic input is ignored while the app's own notes play, plus 0.35 s.
+- **Quiet input handling (v3.1):** pitch and loudness are read from a band-passed copy of the mic (55 Hz high-pass, two 1.8 kHz low-passes), which removes most mic hiss. String detection still reads the unfiltered mic. The room-noise estimate drops fast, rises only while no pitch is heard, and holds still while a note sounds. Before, it slowly crept up to the level of a quiet ringing note and then shut that note out. When YIN finds no dip under 0.12, it takes the first dip within 0.06 of the deepest one, which avoids reading an octave low on noisy input. In tests with recorded quiet plucks (note level about 3× the hiss), the old build detected 0 of 12 notes and the new one detected 12 of 12, all at the right pitch. Noise alone triggered nothing.
 - **Pitch:** YIN on a copy of the newest 4096 samples, decimated 2×, with a 1024-sample window. The range is 60 to 1200 Hz, which covers drop D up past the 15th fret. In tests on synthesized notes across all strings and frets 0 to 15 at 44.1 and 48 kHz, it was within about 1 cent with no octave errors at normal levels.
 - **Note grading:**
   - A note must stay stable for at least 170 ms before it's graded.
