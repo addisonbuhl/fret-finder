@@ -936,6 +936,9 @@ function playNotes(midis, twice) {
 
 // ---------- listening loop ----------
 let noise = 0, slowRms = 0, lastVoiced = 0;
+const PLUCK_JUMP = 1.35, PLUCK_WIN = 300, STEADY_CENTS = 25;
+let lastPluck = -1e9;
+const lvHist = [];
 let tr = null;                  // current note tracker
 let needOnset = false, lastJudgedM = null;
 let shownNote = null;
@@ -957,7 +960,7 @@ function showLevel(rms, gate) {
   el.lvlBar.classList.toggle('on', rms >= gate);
 }
 
-function newTracker(m, now) { return { m, t0: now, frames: 0, cents: [], feat: new Array(HARM).fill(0), featCnt: new Array(HARM).fill(0), featN: 0, done: false }; }
+function newTracker(m, now) { return { m, t0: now, plucked: now - lastPluck < PLUCK_WIN, frames: 0, cents: [], clar: [], feat: new Array(HARM).fill(0), featCnt: new Array(HARM).fill(0), featN: 0, done: false }; }
 
 function loop() {
   if (!running) return;
@@ -981,11 +984,16 @@ function loop() {
   const unvoiced = () => { if (rms > noise) noise = Math.min(rms, noise * 1.01); };
   showLevel(rms, gate);
   const onset = rms > gate && rms > slowRms * 1.8;
+  // Pluck detector: the level jumps above the quietest moment of the last ~130 ms. Only notes that start
+  // with a pluck get graded, so talking, TV and the tail of a ringing note don't count as notes you played.
+  lvHist.push(rms); if (lvHist.length > 8) lvHist.shift();
+  const pluckNow = rms > gate && rms > PLUCK_JUMP * Math.min(...lvHist.slice(0, -1)) && now - lastPluck > 120;
+  if (pluckNow) lastPluck = now;
   slowRms = slowRms * 0.85 + rms * 0.15;
   if (calOpen) el.calLevel.style.width = lvlPct(rms) + '%';
 
-  if (now < ignoreUntil) { tr = null; setLive(null, 0, 'playing note…'); return; }
-  if (onset) needOnset = false;
+  if (now < ignoreUntil) { tr = null; liveFrame(null, 0, now, 'playing note…'); return; }
+  if (onset || pluckNow) needOnset = false;
   if (tunerOpen) tunerFeed(null, now);
   // While recording a hum, the raw pitch track is kept and split into notes afterwards. Whistles go higher, so allow up to 2.4 kHz.
   const humRec = !!(hum && hum.phase === 'rec');
@@ -993,18 +1001,18 @@ function loop() {
     unvoiced();
     if (humRec) humFrame(null, now, rms);
     if (now - lastVoiced > 120) { tr = null; needOnset = false; }
-    setLive(null, 0, 'listening'); return;
+    liveFrame(null, 0, now, 'listening'); return;
   }
   const fmax = humRec ? 2400 : 1200;
   const p = detectPitchClean(sr, fmax);
   if (tunerOpen && p && p.f >= 60 && p.f <= 1400) tunerFeed(p, now);
-  if (!p || p.f < 60 || p.f > fmax * 1.17) { unvoiced(); if (humRec) humFrame(null, now, rms); if (now - lastVoiced > 150) tr = null; setLive(null, 0, 'listening'); return; }
+  if (!p || p.f < 60 || p.f > fmax * 1.17) { unvoiced(); if (humRec) humFrame(null, now, rms); if (now - lastVoiced > 150) tr = null; liveFrame(null, 0, now, 'listening'); return; }
   lastVoiced = now;
   const mf = 69 + 12 * Math.log2(p.f / 440), m = Math.round(mf), cents = (mf - m) * 100;
-  if (humRec) { humFrame(p.clarity >= 0.7 ? mf : null, now, rms); tr = null; setLive(m, cents); return; }
-  if (!tr || tr.m !== m || (onset && tr.done)) tr = newTracker(m, now);
-  tr.frames++; tr.cents.push(cents);
-  setLive(m, cents);
+  if (humRec) { humFrame(p.clarity >= 0.7 ? mf : null, now, rms); tr = null; liveFrame(mf, p.clarity, now); return; }
+  if (!tr || tr.m !== m || ((onset || pluckNow) && tr.done)) tr = newTracker(m, now);   // a new pluck of the same note starts a new note
+  tr.frames++; tr.cents.push(cents); tr.clar.push(p.clarity);
+  liveFrame(mf, p.clarity, now);
 
   const age = now - tr.t0;
   if (!tr.done && age >= 40 && tr.featN < 8) {
@@ -1017,14 +1025,37 @@ function loop() {
   }
   if (!tr.done && age >= 170 && tr.frames >= 5) {
     tr.done = true;
+    if (!tr.plucked && !calOpen) return;            // no pluck at the start: background sound or a note's tail
+    const cs = tr.cents.slice().sort((a, b) => a - b), cl = tr.clar.slice().sort((a, b) => a - b);
+    // A played note holds steady. Speech and other wobbly sounds drift, so skip anything that wanders
+    // more than STEADY_CENTS (middle half of the readings) or reads unclear most of the time.
+    if (cs[Math.floor(cs.length * 0.75)] - cs[Math.floor(cs.length * 0.25)] > STEADY_CENTS || cl[cl.length >> 1] < 0.75) return;
     if (needOnset && m === lastJudgedM) return;   // same ringing note, already graded
     needOnset = true; lastJudgedM = m;
     const feat = tr.featN >= 2 ? tr.feat.map((v, k) => tr.featCnt[k] ? v / tr.featCnt[k] : null) : null;
-    const cs = tr.cents.slice().sort((a, b) => a - b);
     onNote(m, cs[cs.length >> 1], feat, tr.t0);
   }
 }
 
+// The live reading shows the note most of the last ~150 ms agree on, and the needle eases toward the
+// middle of those readings, so single-frame blips from noise don't make it jump. It holds for 0.4 s after a note.
+const liveHist = [];
+let liveShownAt = 0, needleCents = 0;
+function liveFrame(mf, clarity, now, idle) {
+  if (mf != null && clarity >= 0.75) liveHist.push({ t: now, mf });
+  while (liveHist.length && now - liveHist[0].t > 150) liveHist.shift();
+  const count = new Map();
+  liveHist.forEach(x => { const k = Math.round(x.mf); count.set(k, (count.get(k) || 0) + 1); });
+  let m = null, best = 0;
+  count.forEach((c, k) => { if (c > best) { best = c; m = k; } });
+  if (m != null && best >= 3 && best >= liveHist.length * 0.6) {
+    const cs = liveHist.filter(x => Math.round(x.mf) === m).map(x => (x.mf - m) * 100).sort((a, b) => a - b);
+    const c = cs[cs.length >> 1];
+    needleCents = shownNote === m && now - liveShownAt < 300 ? needleCents + (c - needleCents) * 0.3 : c;
+    liveShownAt = now;
+    setLive(m, needleCents);
+  } else if (now - liveShownAt > 400) setLive(null, 0, idle || 'listening');
+}
 function setLive(m, cents, idle) {
   if (m == null) {
     el.liveNote.classList.add('dim');

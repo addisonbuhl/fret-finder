@@ -59,6 +59,11 @@ Addison's real goal is improvising fluency: playing what's in their head (or a s
 - **Speed:** every first-try round in Notes, Echo and Intervals is timed from the end of the app's playback (time per note shown after the ✓). With **Speed goal** on, a bar fills while you play. The goal starts at 3 s a note (Intervals 4 s, Echo 2.5 s), tightens 15% after 5 beats in a row (min 0.6 s), and eases 15% after 6 misses of it in a row.
 - **Daily streak:** practice time counts between the notes you play (any gap over 15 s counts as 15 s). 5 minutes makes a day count. The header shows the day streak and today's minutes. The old "in a row" streak is still in Progress.
 - **Progress sheet:** day streak, minutes today, best day streak, recent time per note, first-try stats, in a row, neck areas open, Echo tune length.
+- **Noise handling (v4.1):**
+  - **Pluck gate:** a note is graded only if it starts within 0.3 s of a pluck. A pluck is when the level jumps 1.35× above the quietest moment of the last ~130 ms. A new pluck of the same ringing note also starts a new note, so repeated notes played legato count. Calibration skips this check.
+  - **Steadiness check:** the middle half of a note's pitch readings must sit within 25 cents, and the median clarity must be at least 0.75. Speech and other wobbly sounds fail this.
+  - **Results in a synthetic noise test:** with a 60 Hz hum, wrong extra notes during playing went from 8 to 0. With speech-like noise, false notes went from about 4–5 to 1–2 per 6 s. Every pluck was still caught. Background music with real melody notes still slips through sometimes (about 6 per 6 s of busy music), because it has plucks and steady pitch just like a guitar.
+  - **Live display smoothing:** the note shown is the one most frames in the last 150 ms agree on (at least 3 frames and 60%, clarity ≥ 0.75). The needle eases toward the median cents, and the reading holds 0.4 s after a note. With a quiet note under fan noise, display flicker went from about 50 changes to 4–8, and needle wobble went from 15–18 to 3–4 cents.
 - New saved fields in `ff.progress`: `secs`, `bestDays`, `unlocked`, `zoneHist`, `speed`, `goal`, `goalRun`, `goalSlow`, `echoLen`, `songs`. New settings: `zone`, `songId`, `timed`, `tempo`, `speedGoal`.
 
 ## How it works
